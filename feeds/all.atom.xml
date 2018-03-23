@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Machine Learning Projects</title><link href="http://benhoyle.github.io/" rel="alternate"></link><link href="http://benhoyle.github.io/feeds/all.atom.xml" rel="self"></link><id>http://benhoyle.github.io/</id><updated>2018-03-23T12:18:53+00:00</updated><entry><title>5. Classifying Claims - Reporting Results</title><link href="http://benhoyle.github.io/part-5-classifying-claims-reporting-results.html" rel="alternate"></link><updated>2018-03-23T12:18:53+00:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-03-23:part-5-classifying-claims-reporting-results.html</id><summary type="html">&lt;h1&gt;5. Classifying Claims - Reporting Results&lt;/h1&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Machine Learning Projects</title><link href="https://benhoyle.github.io/" rel="alternate"></link><link href="https://benhoyle.github.io/feeds/all.atom.xml" rel="self"></link><id>https://benhoyle.github.io/</id><updated>2018-03-23T12:18:53+00:00</updated><entry><title>5. Classifying Claims - Reporting Results</title><link href="https://benhoyle.github.io/part-5-classifying-claims-reporting-results.html" rel="alternate"></link><updated>2018-03-23T12:18:53+00:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-03-23:part-5-classifying-claims-reporting-results.html</id><summary type="html">&lt;h1&gt;5. Classifying Claims - Reporting Results&lt;/h1&gt;
 &lt;p&gt;Here we will look at what we have learnt during our project to classify patent claims. The aim of doing this is to consolidate what we have learnt, and practice a methodology for presenting our results.&lt;/p&gt;
 &lt;p&gt;The post &lt;a href="https://machinelearningmastery.com/how-to-use-machine-learning-results/"&gt;here&lt;/a&gt; suggests the following structure for reporting our results:&lt;/p&gt;
 &lt;ol&gt;
@@ -102,12 +102,12 @@
 &lt;p&gt;However, the training time for the non-linear SVM in scikit-learn (based on libsvm) is very long, much longer than either the MLP or the Naive Bayes classifier. The Naive Bayes classifier is one of the quickest, taking only a few seconds, compared to tens of minutes for the MLP and up to an hour for the SVM. &lt;/p&gt;
 &lt;h4&gt;Comparing Predictions&lt;/h4&gt;
 &lt;p&gt;It was interesting to compare how our Naive Bayes and MLP classifiers were predicting categories.&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/4a_output_19_1.png" /&gt; &lt;img alt="png" src="http://benhoyle.github.io/images/4a_output_19_2.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4a_output_19_1.png" /&gt; &lt;img alt="png" src="https://benhoyle.github.io/images/4a_output_19_2.png" /&gt;&lt;/p&gt;
 &lt;p&gt;The Naive Bayes classifier struggled on class A - often confusing it with class C. However, it out-performs the MLP classifier on classes C, E, F and G -  a majority of the classes.&lt;/p&gt;
 &lt;p&gt;The MLP classifier obtains a higher classification accuracy by outperforming on classes A and H. Indeed it looks like the misclassification of class A by the Naive Bayes classifier was the main reason for it having an overal accuracy below the MLP.&lt;/p&gt;
 &lt;p&gt;This is one reason why the Naives Bayes classifier may actually be better in production despite having a headline accuracy below the MLP.&lt;/p&gt;
 &lt;p&gt;It was disappointing to see that an ensemble classifier did not seem to capitalise on the relative strengths of both classifiers, at least in terms of overall classification accuracy.  &lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/4a_output_27_2.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4a_output_27_2.png" /&gt;&lt;/p&gt;
 &lt;p&gt;The Naive Bayes brings down the performance of the ensemble classifier for classes A and H, despite increasing the accuracy for the other classes. This suggests that the Naive Bayes classifiers may be assigning fairly high incorrect probabilities for classes A and H, such that a hard or soft vote still goes with the missclassification.&lt;/p&gt;
 &lt;p&gt;Ensemble classifiers appear a fruitful area for further investigation. For example, it may be that be adjusting the weightings of the ensemble we can avoid the degnerative performance for classes A and H.&lt;/p&gt;
 &lt;h3&gt;4.3 Findings regarding specific algorithms&lt;/h3&gt;
@@ -115,11 +115,11 @@
 &lt;h4&gt;Overfitting&lt;/h4&gt;
 &lt;p&gt;A key finding in this project was the importance of regularisation to avoid overfitting.&lt;/p&gt;
 &lt;p&gt;Our simple one layer neural network suffered greatly from overfitting on the data.&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/output_11_1.png" /&gt; &lt;img alt="png" src="http://benhoyle.github.io/images/output_11_2.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_11_1.png" /&gt; &lt;img alt="png" src="https://benhoyle.github.io/images/output_11_2.png" /&gt;&lt;/p&gt;
 &lt;p&gt;As can be seen in these graphs, within a few epochs our network has a near 100% accuracy as it learns to overfit on the supplied data. Considering that we have 10,000 data samples and, due to the high dimensionality input, our model has 2.5 million parameters, it is easy to see how overfitting could occur - i.e. there are many more parameters than samples so our network can simply learn to memorise each sample. &lt;/p&gt;
 &lt;p&gt;Overfitting leads to poor performance on validation datasets, i.e. data that is not used to train the neural network. This is most visible in the graph of model loss: while model loss reduces during training for the training data it &lt;em&gt;increases&lt;/em&gt; for the test data set, i.e. we perform worse on our test data as our model overfits on our training data.&lt;/p&gt;
 &lt;p&gt;Two techniques are recommended for overfitting: Dropout and Regularisation. In our case it turned out that Regularisation was more effective, and that a combination of moderate amounts of both Dropout and Regularisation acted to align training and test performance. For example L2 regularisation with a lambda value of 0.05 and Dropout between layers of around 0.2-0.25 worked well.&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/4C_output_20_1.png" /&gt; &lt;img alt="png" src="http://benhoyle.github.io/images/4C_output_20_2.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4C_output_20_1.png" /&gt; &lt;img alt="png" src="https://benhoyle.github.io/images/4C_output_20_2.png" /&gt;&lt;/p&gt;
 &lt;p&gt;However, even in this case, performance quickly saturates and additional trainings does not do much to increase our accuracy or reduce our loss. &lt;/p&gt;
 &lt;p&gt;This is consistent with our other results - it suggests that there are certain easily discernable rules for work for 60-80% of class classifications, but that beyond that there are no absolute rules and that certain claims cannot be predictable assigned a class. &lt;/p&gt;
 &lt;h4&gt;Architectures&lt;/h4&gt;
@@ -142,7 +142,7 @@
 &lt;h2&gt;6. Conclusions&lt;/h2&gt;
 &lt;p&gt;So, how best to assign a Section to a patent claim? &lt;/p&gt;
 &lt;p&gt;It turns out that a Naive Bayes classifier is a good all-round solution. I would select this for any production system. Although SVM and neural network classifiers showed slightly better performance, as measured by overall classification accuracy, the out-of-the-box quick performance of the Naive Bayes classifier, and it's reasonable strengths on individual classes, makes me believe that this is a better solution.&lt;/p&gt;
-&lt;p&gt;Even with advanced techniques overall classification accuracy was limited to around 60%. This is still better than 20% if chosen at random. However, it suggests that we cannot implement a deterministic system that makes decisions based on programmatically assigned Sections. We may thus need to shift our perspective, e.g. could we show suggested Sections, together with probabilities to help human decision making, or offer a "confirm Section" option that allows the over-riding of the missclassification of certain Sections. &lt;/p&gt;</summary><category term="reporting_results"></category></entry><entry><title>4. Classifying Claims - Improving Results</title><link href="http://benhoyle.github.io/part-4-classifying-claims-improving-results.html" rel="alternate"></link><updated>2018-03-23T10:19:19+00:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-03-23:part-4-classifying-claims-improving-results.html</id><summary type="html">&lt;h1&gt;4. Classifying Claims - Improving Results&lt;/h1&gt;
+&lt;p&gt;Even with advanced techniques overall classification accuracy was limited to around 60%. This is still better than 20% if chosen at random. However, it suggests that we cannot implement a deterministic system that makes decisions based on programmatically assigned Sections. We may thus need to shift our perspective, e.g. could we show suggested Sections, together with probabilities to help human decision making, or offer a "confirm Section" option that allows the over-riding of the missclassification of certain Sections. &lt;/p&gt;</summary><category term="reporting_results"></category></entry><entry><title>4. Classifying Claims - Improving Results</title><link href="https://benhoyle.github.io/part-4-classifying-claims-improving-results.html" rel="alternate"></link><updated>2018-03-23T10:19:19+00:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-03-23:part-4-classifying-claims-improving-results.html</id><summary type="html">&lt;h1&gt;4. Classifying Claims - Improving Results&lt;/h1&gt;
 &lt;p&gt;At this stage, we will look at taking a few of our best-performing algorithms from our previous post and attempting to increase performance. &lt;/p&gt;
 &lt;hr /&gt;
 &lt;p&gt;As you may remember, the best-performing algorithms were: &lt;/p&gt;
@@ -301,8 +301,8 @@ dict_keys([&amp;#39;val_acc&amp;#39;, &amp;#39;acc&amp;#39;, &amp;#39;loss&amp;#
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/output_11_1.png" /&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/output_11_2.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_11_1.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_11_2.png" /&gt;&lt;/p&gt;
 &lt;h3&gt;Overfitting&lt;/h3&gt;
 &lt;p&gt;Looking at this first set of results we can see that our neural network quickly overfits the data, while the test performance stays reasonably constant.  &lt;/p&gt;
 &lt;p&gt;One way to reduce overfitting is to &lt;a href="https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/"&gt;apply Dropout&lt;/a&gt;. Let's try that now.&lt;/p&gt;
@@ -384,8 +384,8 @@ dict_keys([&amp;#39;val_acc&amp;#39;, &amp;#39;acc&amp;#39;, &amp;#39;loss&amp;#
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/output_13_1.png" /&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/output_13_2.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_13_1.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_13_2.png" /&gt;&lt;/p&gt;
 &lt;p&gt;Now let's try with a more aggressive level of Dropout.&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;keras.layers&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;Dropout&lt;/span&gt;
 
@@ -465,8 +465,8 @@ dict_keys([&amp;#39;val_acc&amp;#39;, &amp;#39;acc&amp;#39;, &amp;#39;loss&amp;#
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/output_15_1.png" /&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/output_15_2.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_15_1.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_15_2.png" /&gt;&lt;/p&gt;
 &lt;p&gt;This seems to work a little bit better - but there is about 2-3% variance so it is difficult to tell. Maybe we can try to train for a number of additional epochs.&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;keras.layers&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;Dropout&lt;/span&gt;
 
@@ -566,8 +566,8 @@ dict_keys([&amp;#39;val_acc&amp;#39;, &amp;#39;acc&amp;#39;, &amp;#39;loss&amp;#
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/output_17_1.png" /&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/output_17_2.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_17_1.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_17_2.png" /&gt;&lt;/p&gt;
 &lt;p&gt;Okay so Dropout doesn't appear to improve our performance. Overfitting still occurs over time and the test accuracy appears stubbornly fixed at around 60-62%.&lt;/p&gt;
 &lt;hr /&gt;
 &lt;h2&gt;Improving Performance with Algorithm Tuning&lt;/h2&gt;
@@ -648,8 +648,8 @@ dict_keys([&amp;#39;val_acc&amp;#39;, &amp;#39;acc&amp;#39;, &amp;#39;loss&amp;#
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/output_20_1.png" /&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/output_20_2.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_20_1.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_20_2.png" /&gt;&lt;/p&gt;
 &lt;h3&gt;Regularisation&lt;/h3&gt;
 &lt;p&gt;One method of attempting to avoid overfitting is to limit the magnitude of our weights using regularisation. This is explained in this &lt;a href="https://cambridgespark.com/content/tutorials/neural-networks-tuning-techniques/index.html"&gt;post&lt;/a&gt;.  &lt;/p&gt;
 &lt;p&gt;Here we will try L2 regularisation, which penalises large weight values.&lt;/p&gt;
@@ -728,8 +728,8 @@ dict_keys([&amp;#39;val_acc&amp;#39;, &amp;#39;acc&amp;#39;, &amp;#39;loss&amp;#
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/output_23_1.png" /&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/output_23_2.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_23_1.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_23_2.png" /&gt;&lt;/p&gt;
 &lt;p&gt;Regularisation appears to work here. While it doesn't affect accuracy, we do now have the loss for both the train and test sets decreasing over time.&lt;/p&gt;
 &lt;hr /&gt;
 &lt;h2&gt;Increasing Performance with Data&lt;/h2&gt;
@@ -840,8 +840,8 @@ dict_keys([&amp;#39;val_acc&amp;#39;, &amp;#39;acc&amp;#39;, &amp;#39;loss&amp;#
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/output_32_1.png" /&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/output_32_2.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_32_1.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_32_2.png" /&gt;&lt;/p&gt;
 &lt;p&gt;Normalising our data does not seem to have any significant effect. This is to be expected - our data is already normalised to a certain extent, and we are dealing with sparse language data rather than continuous image data. &lt;/p&gt;
 &lt;p&gt;This processing does appear to help slightly to reduce overfitting. This maybe suggests that regularisation may be useful.&lt;/p&gt;
 &lt;h3&gt;Changing Input Dimensionality&lt;/h3&gt;
@@ -1389,8 +1389,8 @@ dict_keys([&amp;#39;val_loss&amp;#39;, &amp;#39;val_acc&amp;#39;, &amp;#39;loss&
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/4C_output_13_1.png" /&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/4C_output_13_2.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4C_output_13_1.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4C_output_13_2.png" /&gt;&lt;/p&gt;
 &lt;p&gt;Our accuracy appears to have improved by 1-2%. This is still a small increase though, and possibly within the variance of our classifier. Let's try with regularisation, which had the best effect to prevent overfitting.&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;keras.regularizers&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;l2&lt;/span&gt; &lt;span class="c1"&gt;# L2-regularisation&lt;/span&gt;
 &lt;span class="n"&gt;l2_lambda&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="mf"&gt;0.1&lt;/span&gt;
@@ -1549,8 +1549,8 @@ dict_keys([&amp;#39;val_loss&amp;#39;, &amp;#39;val_acc&amp;#39;, &amp;#39;acc&a
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/4C_output_18_1.png" /&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/4C_output_18_2.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4C_output_18_1.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4C_output_18_2.png" /&gt;&lt;/p&gt;
 &lt;p&gt;Maybe that's too aggressive on the regularisation...&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="n"&gt;l2_lambda&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="mf"&gt;0.05&lt;/span&gt;
 
@@ -1819,8 +1819,8 @@ dict_keys([&amp;#39;val_loss&amp;#39;, &amp;#39;acc&amp;#39;, &amp;#39;loss&amp;
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/4C_output_20_1.png" /&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/4C_output_20_2.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4C_output_20_1.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4C_output_20_2.png" /&gt;&lt;/p&gt;
 &lt;hr /&gt;
 &lt;h2&gt;Increasing Performance with Ensembles&lt;/h2&gt;
 &lt;p&gt;How do each of our preferred machine learning algorithms build their models? If they each have different strengths and weaknesses we may be able to build an ensemble model that outperforms the individual performance.&lt;/p&gt;
@@ -1924,8 +1924,8 @@ Normalized confusion matrix
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/4a_output_19_1.png" /&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/4a_output_19_2.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4a_output_19_1.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4a_output_19_2.png" /&gt;&lt;/p&gt;
 &lt;h4&gt;Observations on the Confusion Matrix&lt;/h4&gt;
 &lt;p&gt;The Naive Bayes classifier performs better than the MLP classifier for Sections C, D, E, F and G. The MLP classifier performs better for Sections A, B, and H. &lt;/p&gt;
 &lt;p&gt;This suggests that an ensemble of both classifiers may work at improving performance. scikit-learn has a method to use both hard and soft voting &lt;a href="http://scikit-learn.org/stable/modules/ensemble.html"&gt;here&lt;/a&gt;.&lt;/p&gt;
@@ -2006,7 +2006,7 @@ Normalized confusion matrix
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/4a_output_27_2.png" /&gt;&lt;/p&gt;</summary><category term="improving_results"></category></entry><entry><title>3. Classifying Claims - Spot-Checking Algorithms</title><link href="http://benhoyle.github.io/part-3-classifying-claims-spot-checking-algorithms.html" rel="alternate"></link><updated>2018-03-22T14:26:49+00:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-03-22:part-3-classifying-claims-spot-checking-algorithms.html</id><summary type="html">&lt;h1&gt;3. Classifying Claims - Spot-Checking Algorithms&lt;/h1&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4a_output_27_2.png" /&gt;&lt;/p&gt;</summary><category term="improving_results"></category></entry><entry><title>3. Classifying Claims - Spot-Checking Algorithms</title><link href="https://benhoyle.github.io/part-3-classifying-claims-spot-checking-algorithms.html" rel="alternate"></link><updated>2018-03-22T14:26:49+00:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-03-22:part-3-classifying-claims-spot-checking-algorithms.html</id><summary type="html">&lt;h1&gt;3. Classifying Claims - Spot-Checking Algorithms&lt;/h1&gt;
 &lt;p&gt;Now we have our claim data and Section labels in numeric form, we can start evaluating different machine learning algorithms to get a feel for what may or may not work. A good method to apply is described &lt;a href="https://machinelearningmastery.com/how-to-evaluate-machine-learning-algorithms/"&gt;here&lt;/a&gt;.&lt;/p&gt;
 &lt;p&gt;At this stage we want to determine some baseline results and apply vanilla implementations of common algorithms. From this we can choose one or two algorithms to investigate further. &lt;/p&gt;
 &lt;h2&gt;Loading Our Data&lt;/h2&gt;
@@ -2127,7 +2127,7 @@ Classifier SVC has an average classification accuracy of 62.52 (0.80)
 &lt;h3&gt;An Aside on Classification History&lt;/h3&gt;
 &lt;p&gt;The results of this spot-check experiment rather nicely match the historic development of supervised classification algorithms. &lt;/p&gt;
 &lt;p&gt;Before recent developments in deep-learning, linear classifiers such as linear SVMs offered the best performance. Bayesian methods then offered an alternative set of classifiers with a similar performance. Many early spam filters used Naive Bayes classifiers. &lt;/p&gt;
-&lt;p&gt;The recent improvements in deep-learning offer the potential for gains over the previous state-of-the-art. However, as in our case, these gains are not huge with vanilla models (less than 5%). &lt;/p&gt;</summary><category term="spot_checking"></category></entry><entry><title>2. Classifying Claims - Preparing the Data</title><link href="http://benhoyle.github.io/part-2-classifying-claims-getting-the-data.html" rel="alternate"></link><updated>2018-03-22T13:53:46+00:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-03-22:part-2-classifying-claims-getting-the-data.html</id><summary type="html">&lt;h1&gt;2. Classifying Claims - Preparing the Data&lt;/h1&gt;
+&lt;p&gt;The recent improvements in deep-learning offer the potential for gains over the previous state-of-the-art. However, as in our case, these gains are not huge with vanilla models (less than 5%). &lt;/p&gt;</summary><category term="spot_checking"></category></entry><entry><title>2. Classifying Claims - Preparing the Data</title><link href="https://benhoyle.github.io/part-2-classifying-claims-getting-the-data.html" rel="alternate"></link><updated>2018-03-22T13:53:46+00:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-03-22:part-2-classifying-claims-getting-the-data.html</id><summary type="html">&lt;h1&gt;2. Classifying Claims - Preparing the Data&lt;/h1&gt;
 &lt;p&gt;In the previous post we looked at the problem for our current project: how to assign an IPC/CPC Section to a first claim of a patent application.&lt;/p&gt;
 &lt;p&gt;In this post we will look at the steps required to prepare some data for our machine learning algorithms. These steps roughly follow the guide &lt;a href="https://machinelearningmastery.com/how-to-prepare-data-for-machine-learning/"&gt;here&lt;/a&gt;:&lt;/p&gt;
 &lt;ul&gt;
@@ -2334,7 +2334,7 @@ Once we have the patent publications, we need to extract the text for claim 1 an
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/2_output_23_1.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/2_output_23_1.png" /&gt;&lt;/p&gt;
 &lt;p&gt;As we can see the 6134 length claim is a clear outlier. The distribution is focused around 0 to around 600 words. Let's zoom in on that.&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="n"&gt;bins&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;np&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;linspace&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;600&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;200&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
 &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;hist&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;list&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;claim_length_counter&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;elements&lt;/span&gt;&lt;span class="p"&gt;()),&lt;/span&gt; &lt;span class="n"&gt;bins&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
@@ -2348,7 +2348,7 @@ Once we have the patent publications, we need to extract the text for claim 1 an
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;&lt;img alt="png" src="http://benhoyle.github.io/images/2_output_25_1.png" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/2_output_25_1.png" /&gt;&lt;/p&gt;
 &lt;p&gt;When applying deep learning algorithms we often need to set a maximum sequence length. When dealing with words, this is equal to the maximum number of words expected in a claim. A lower maximum sequence length will help reduce our training time. &lt;/p&gt;
 &lt;p&gt;If we take all claims of less than 250 words this would still include most of the data.  &lt;/p&gt;
 &lt;h4&gt;Words&lt;/h4&gt;
@@ -2480,7 +2480,7 @@ An example array is:  [ 0.          0.          2.43021996  2.08331543  1.715706
 &lt;p&gt;Now we can save our X and Y data to load for testing a set of machine learning algorithms.&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="k"&gt;with&lt;/span&gt; &lt;span class="nb"&gt;open&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;encoded_data.pkl&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;wb&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;as&lt;/span&gt; &lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
     &lt;span class="n"&gt;pickle&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;dump&lt;/span&gt;&lt;span class="p"&gt;((&lt;/span&gt;&lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;</summary><category term="preparing_data"></category></entry><entry><title>1. Classifying Claims - Defining the Problem</title><link href="http://benhoyle.github.io/part-1-classifying-claims-defining-the-problem.html" rel="alternate"></link><updated>2018-03-22T13:43:12+00:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-03-22:part-1-classifying-claims-defining-the-problem.html</id><summary type="html">&lt;h1&gt;1. Classifying Claims - Defining the Problem&lt;/h1&gt;
+&lt;/pre&gt;&lt;/div&gt;</summary><category term="preparing_data"></category></entry><entry><title>1. Classifying Claims - Defining the Problem</title><link href="https://benhoyle.github.io/part-1-classifying-claims-defining-the-problem.html" rel="alternate"></link><updated>2018-03-22T13:43:12+00:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-03-22:part-1-classifying-claims-defining-the-problem.html</id><summary type="html">&lt;h1&gt;1. Classifying Claims - Defining the Problem&lt;/h1&gt;
 &lt;p&gt;This post looks at how we define the problem of claim classification.  &lt;/p&gt;
 &lt;hr /&gt;
 &lt;h1&gt;What is the problem?&lt;/h1&gt;
