@@ -42,7 +42,7 @@
     <div class="content">
       <h1>4. Classifying Claims - Improving Results</h1>
 <p>At this stage, we will look at taking a few of our best-performing algorithms from our previous post and attempting to increase performance. </p>
-<hr />
+<hr>
 <p>As you may remember, the best-performing algorithms were: </p>
 <ul>
 <li>Naive Bayes - an accuracy of 58.90% (1.12% variance);</li>
@@ -57,9 +57,9 @@
 <li>Improve Performance With Ensembles.</li>
 </ol>
 <p>We should also look at the time required to train our models. If a model is 10x faster to train, it may be preferable to another model with greater accuracy. </p>
-<hr />
+<hr>
 <h2>Load the Data</h2>
-<div class="highlight"><pre><span class="kn">import</span> <span class="nn">pickle</span>
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">pickle</span>
 <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;encoded_data.pkl&quot;</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
     <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Loading data&quot;</span><span class="p">)</span>
     <span class="n">X</span><span class="p">,</span> <span class="n">Y</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
@@ -67,12 +67,12 @@
 </pre></div>
 
 
-<div class="highlight"><pre>Loading data
+<div class="highlight"><pre><span></span>Loading data
 11238 claims and 11238 classifications loaded
 </pre></div>
 
 
-<div class="highlight"><pre><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
 <span class="c1"># Convert one hot to target integer</span>
 <span class="n">Y_integers</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 </pre></div>
@@ -82,7 +82,7 @@
 <h2>Naive Bayes to Start</h2>
 <p>It turns out that there are not too many parameters we can vary for a Naive Bayes classifier. In fact, in scikit-learn there is only one tuneable parameter - alpha - that sets an amount of additive smoothing (see the documentation <a href="http://scikit-learn.org/stable/modules/generated/sklearn.naive_bayes.MultinomialNB.html">here</a>.</p>
 <p>The smoothing is set to 1.0 as a default. Let's have a look at performance if we turn this off by setting the alpha parameter to 0.</p>
-<div class="highlight"><pre><span class="kn">from</span> <span class="nn">sklearn.model_selection</span> <span class="kn">import</span> <span class="n">cross_val_score</span>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">sklearn.model_selection</span> <span class="kn">import</span> <span class="n">cross_val_score</span>
 <span class="kn">from</span> <span class="nn">sklearn.naive_bayes</span> <span class="kn">import</span> <span class="n">MultinomialNB</span>
 
 <span class="n">scores</span> <span class="o">=</span> <span class="n">cross_val_score</span><span class="p">(</span><span class="n">MultinomialNB</span><span class="p">(</span><span class="n">alpha</span><span class="o">=</span><span class="mf">1.0e-3</span><span class="p">),</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y_integers</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
@@ -96,12 +96,12 @@
 </pre></div>
 
 
-<div class="highlight"><pre>NB with alpha = 0 has an average classification accuracy of 58.94 (0.43)
+<div class="highlight"><pre><span></span>NB with alpha = 0 has an average classification accuracy of 58.94 (0.43)
 </pre></div>
 
 
 <p>As we can see changing this parameter doesn't seem to have that much effect.</p>
-<hr />
+<hr>
 <h2>Improving Performance with Algorithms</h2>
 <p>Now, scikit-learn provides a rather simple multi-layer neural network implementation. To improve performance we can experiment with more advanced neural network architectures.  </p>
 <p>Questions we can ask include:
@@ -109,7 +109,7 @@
 - Does using Dropout increase performance?
 - Does changing the dimensionality of our hidden layers increase performance?</p>
 <p>Keras is an excellent library for experimenting with deep learning models. We will play around using that. This post <a href="https://machinelearningmastery.com/multi-class-classification-tutorial-keras-deep-learning-library/">here</a> explains how we can perform k-fold validation with keras models.</p>
-<div class="highlight"><pre><span class="n">input_dim</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+<div class="highlight"><pre><span></span><span class="n">input_dim</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
 <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Our input dimension for our claim representation is {0}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">input_dim</span><span class="p">))</span>
 
 <span class="n">no_classes</span> <span class="o">=</span> <span class="n">Y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
@@ -117,7 +117,7 @@
 </pre></div>
 
 
-<div class="highlight"><pre>Our input dimension for our claim representation is 5000
+<div class="highlight"><pre><span></span>Our input dimension for our claim representation is 5000
 Our output dimension is 8
 </pre></div>
 
@@ -125,7 +125,7 @@ Our output dimension is 8
 <h3>Keras Model</h3>
 <p>Before attempting cross-validation, let's build and explore a Keras model.  </p>
 <p>This post <a href="https://machinelearningmastery.com/display-deep-learning-model-training-history-in-keras/">here</a> provides help for obtaining training metrics as Keras callback data and plotting those metrics.</p>
-<div class="highlight"><pre><span class="kn">from</span> <span class="nn">keras.models</span> <span class="kn">import</span> <span class="n">Sequential</span>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">keras.models</span> <span class="kn">import</span> <span class="n">Sequential</span>
 <span class="kn">from</span> <span class="nn">keras.layers</span> <span class="kn">import</span> <span class="n">Dense</span><span class="p">,</span> <span class="n">Activation</span><span class="p">,</span> <span class="n">Dropout</span>
 <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
 
@@ -163,7 +163,7 @@ Our output dimension is 8
 </pre></div>
 
 
-<div class="highlight"><pre>_________________________________________________________________
+<div class="highlight"><pre><span></span>_________________________________________________________________
 Layer (type)                 Output Shape              Param #   
 =================================================================
 dense_9 (Dense)              (None, 500)               2500500   
@@ -199,12 +199,12 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/output_11_1.png" /></p>
-<p><img alt="png" src="https://benhoyle.github.io/images/output_11_2.png" /></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/output_11_1.png"></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/output_11_2.png"></p>
 <h3>Overfitting</h3>
 <p>Looking at this first set of results we can see that our neural network quickly overfits the data, while the test performance stays reasonably constant.  </p>
 <p>One way to reduce overfitting is to <a href="https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/">apply Dropout</a>. Let's try that now.</p>
-<div class="highlight"><pre><span class="kn">from</span> <span class="nn">keras.layers</span> <span class="kn">import</span> <span class="n">Dropout</span>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">keras.layers</span> <span class="kn">import</span> <span class="n">Dropout</span>
 
 <span class="k">def</span> <span class="nf">keras_dropout_model</span><span class="p">():</span>
     <span class="c1"># create model</span>
@@ -242,7 +242,7 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<div class="highlight"><pre>_________________________________________________________________
+<div class="highlight"><pre><span></span>_________________________________________________________________
 Layer (type)                 Output Shape              Param #   
 =================================================================
 dropout_1 (Dropout)          (None, 5000)              0         
@@ -282,10 +282,10 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/output_13_1.png" /></p>
-<p><img alt="png" src="https://benhoyle.github.io/images/output_13_2.png" /></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/output_13_1.png"></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/output_13_2.png"></p>
 <p>Now let's try with a more aggressive level of Dropout.</p>
-<div class="highlight"><pre><span class="kn">from</span> <span class="nn">keras.layers</span> <span class="kn">import</span> <span class="n">Dropout</span>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">keras.layers</span> <span class="kn">import</span> <span class="n">Dropout</span>
 
 <span class="k">def</span> <span class="nf">keras_dropout_model</span><span class="p">():</span>
     <span class="c1"># create model</span>
@@ -323,7 +323,7 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<div class="highlight"><pre>_________________________________________________________________
+<div class="highlight"><pre><span></span>_________________________________________________________________
 Layer (type)                 Output Shape              Param #   
 =================================================================
 dropout_3 (Dropout)          (None, 5000)              0         
@@ -363,10 +363,10 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/output_15_1.png" /></p>
-<p><img alt="png" src="https://benhoyle.github.io/images/output_15_2.png" /></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/output_15_1.png"></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/output_15_2.png"></p>
 <p>This seems to work a little bit better - but there is about 2-3% variance so it is difficult to tell. Maybe we can try to train for a number of additional epochs.</p>
-<div class="highlight"><pre><span class="kn">from</span> <span class="nn">keras.layers</span> <span class="kn">import</span> <span class="n">Dropout</span>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">keras.layers</span> <span class="kn">import</span> <span class="n">Dropout</span>
 
 <span class="k">def</span> <span class="nf">keras_dropout_model</span><span class="p">():</span>
     <span class="c1"># create model</span>
@@ -404,7 +404,7 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<div class="highlight"><pre>_________________________________________________________________
+<div class="highlight"><pre><span></span>_________________________________________________________________
 Layer (type)                 Output Shape              Param #   
 =================================================================
 dropout_5 (Dropout)          (None, 5000)              0         
@@ -464,13 +464,13 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/output_17_1.png" /></p>
-<p><img alt="png" src="https://benhoyle.github.io/images/output_17_2.png" /></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/output_17_1.png"></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/output_17_2.png"></p>
 <p>Okay so Dropout doesn't appear to improve our performance. Overfitting still occurs over time and the test accuracy appears stubbornly fixed at around 60-62%.</p>
-<hr />
+<hr>
 <h2>Improving Performance with Algorithm Tuning</h2>
 <p>Let's explore a few architecture choices with our keras model to see if we can see any improvement. At this stage we are just looking for low-hanging fruit. If a particular direction looks promising, there is the option to use grid search routines to find optimal parameters. </p>
-<div class="highlight"><pre><span class="k">def</span> <span class="nf">keras_multi_layer_model</span><span class="p">():</span>
+<div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">keras_multi_layer_model</span><span class="p">():</span>
     <span class="c1"># create model</span>
     <span class="n">model</span> <span class="o">=</span> <span class="n">Sequential</span><span class="p">()</span>
     <span class="n">model</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Dense</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="n">input_dim</span><span class="o">=</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="s1">&#39;relu&#39;</span><span class="p">))</span>
@@ -506,7 +506,7 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<div class="highlight"><pre>_________________________________________________________________
+<div class="highlight"><pre><span></span>_________________________________________________________________
 Layer (type)                 Output Shape              Param #   
 =================================================================
 dense_17 (Dense)             (None, 1000)              5001000   
@@ -546,17 +546,17 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/output_20_1.png" /></p>
-<p><img alt="png" src="https://benhoyle.github.io/images/output_20_2.png" /></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/output_20_1.png"></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/output_20_2.png"></p>
 <h3>Regularisation</h3>
 <p>One method of attempting to avoid overfitting is to limit the magnitude of our weights using regularisation. This is explained in this <a href="https://cambridgespark.com/content/tutorials/neural-networks-tuning-techniques/index.html">post</a>.  </p>
 <p>Here we will try L2 regularisation, which penalises large weight values.</p>
-<div class="highlight"><pre><span class="kn">from</span> <span class="nn">keras.regularizers</span> <span class="kn">import</span> <span class="n">l2</span> <span class="c1"># L2-regularisation</span>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">keras.regularizers</span> <span class="kn">import</span> <span class="n">l2</span> <span class="c1"># L2-regularisation</span>
 <span class="n">l2_lambda</span> <span class="o">=</span> <span class="mf">0.01</span>
 </pre></div>
 
 
-<div class="highlight"><pre><span class="k">def</span> <span class="nf">keras_reg_model</span><span class="p">():</span>
+<div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">keras_reg_model</span><span class="p">():</span>
     <span class="c1"># create model</span>
     <span class="n">model</span> <span class="o">=</span> <span class="n">Sequential</span><span class="p">()</span>
     <span class="n">model</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Dense</span><span class="p">(</span><span class="mi">500</span><span class="p">,</span> <span class="n">input_dim</span><span class="o">=</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="s1">&#39;relu&#39;</span><span class="p">,</span> <span class="n">kernel_regularizer</span><span class="o">=</span><span class="n">l2</span><span class="p">(</span><span class="n">l2_lambda</span><span class="p">)))</span>
@@ -590,7 +590,7 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<div class="highlight"><pre>_________________________________________________________________
+<div class="highlight"><pre><span></span>_________________________________________________________________
 Layer (type)                 Output Shape              Param #   
 =================================================================
 dense_23 (Dense)             (None, 500)               2500500   
@@ -626,10 +626,10 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/output_23_1.png" /></p>
-<p><img alt="png" src="https://benhoyle.github.io/images/output_23_2.png" /></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/output_23_1.png"></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/output_23_2.png"></p>
 <p>Regularisation appears to work here. While it doesn't affect accuracy, we do now have the loss for both the train and test sets decreasing over time.</p>
-<hr />
+<hr>
 <h2>Increasing Performance with Data</h2>
 <p>Here are some steps we can try to improve performance by modifying our initial data:
 1. Normalise the data - it may be worth looking into whether we can normalise our input X matrix values data to scale between 0 and 1. Our Y vector is already in a one-hot format and so cannot be normalised.
@@ -639,23 +639,23 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 <h3>Normalising the Data</h3>
 <p>We can first try to zero-center the data by substracting the mean and dividing by the standard deviation. </p>
 <p>Now, we should note that our data is already normalised to a certain extent by the inverse document frequency term. But it may be that zero-centered data provides improvement.</p>
-<div class="highlight"><pre><span class="n">X</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">:</span><span class="mi">10</span><span class="p">]</span>
+<div class="highlight"><pre><span></span><span class="n">X</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">:</span><span class="mi">10</span><span class="p">]</span>
 </pre></div>
 
 
-<div class="highlight"><pre>array([ 0.        ,  0.        ,  2.43021996,  2.08331543,  1.71570602,
+<div class="highlight"><pre><span></span>array([ 0.        ,  0.        ,  2.43021996,  2.08331543,  1.71570602,
         2.52741068,  4.87087867,  2.99092954,  2.24937914,  0.        ])
 </pre></div>
 
 
-<div class="highlight"><pre><span class="n">X_zero</span> <span class="o">=</span> <span class="n">X</span>
+<div class="highlight"><pre><span></span><span class="n">X_zero</span> <span class="o">=</span> <span class="n">X</span>
 <span class="n">X_zero</span> <span class="o">-=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">X_zero</span><span class="p">,</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
 <span class="n">X_zero</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
 <span class="n">X_zero</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">:</span><span class="mi">10</span><span class="p">]</span>
 </pre></div>
 
 
-<div class="highlight"><pre>/usr/local/lib/python3.5/dist-packages/ipykernel_launcher.py:3: RuntimeWarning: invalid value encountered in true_divide
+<div class="highlight"><pre><span></span>/usr/local/lib/python3.5/dist-packages/ipykernel_launcher.py:3: RuntimeWarning: invalid value encountered in true_divide
   This is separate from the ipykernel package so we can avoid doing imports until
 
 
@@ -667,17 +667,17 @@ array([        nan, -2.22009656,  0.82212546,  0.62343302,  0.41434569,
 </pre></div>
 
 
-<div class="highlight"><pre><span class="n">X_zero</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">(</span><span class="n">X_zero</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><span class="n">X_zero</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">(</span><span class="n">X_zero</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
 <span class="n">X_zero</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">:</span><span class="mi">10</span><span class="p">]</span>
 </pre></div>
 
 
-<div class="highlight"><pre>array([ 0.        , -2.22009656,  0.82212546,  0.62343302,  0.41434569,
+<div class="highlight"><pre><span></span>array([ 0.        , -2.22009656,  0.82212546,  0.62343302,  0.41434569,
         1.39141984,  2.02709972,  2.37849159,  1.34165113, -0.63808578])
 </pre></div>
 
 
-<div class="highlight"><pre><span class="n">model2</span> <span class="o">=</span> <span class="n">keras_model</span><span class="p">()</span>
+<div class="highlight"><pre><span></span><span class="n">model2</span> <span class="o">=</span> <span class="n">keras_model</span><span class="p">()</span>
 <span class="n">model2</span><span class="o">.</span><span class="n">summary</span><span class="p">()</span>
 <span class="n">history</span> <span class="o">=</span> <span class="n">model2</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_zero</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">validation_split</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 
@@ -702,7 +702,7 @@ array([        nan, -2.22009656,  0.82212546,  0.62343302,  0.41434569,
 </pre></div>
 
 
-<div class="highlight"><pre>_________________________________________________________________
+<div class="highlight"><pre><span></span>_________________________________________________________________
 Layer (type)                 Output Shape              Param #   
 =================================================================
 dense_21 (Dense)             (None, 500)               2500500   
@@ -738,13 +738,13 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/output_32_1.png" /></p>
-<p><img alt="png" src="https://benhoyle.github.io/images/output_32_2.png" /></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/output_32_1.png"></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/output_32_2.png"></p>
 <p>Normalising our data does not seem to have any significant effect. This is to be expected - our data is already normalised to a certain extent, and we are dealing with sparse language data rather than continuous image data. </p>
 <p>This processing does appear to help slightly to reduce overfitting. This maybe suggests that regularisation may be useful.</p>
 <h3>Changing Input Dimensionality</h3>
 <p>Let's see if increasing or decreasing the dimensionality of our input data affects our classification results. We can do this by changing the number of words cap that is passed to our tokeniser.</p>
-<div class="highlight"><pre><span class="kn">import</span> <span class="nn">pickle</span>
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">pickle</span>
 <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;raw_data.pkl&quot;</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
     <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Loading data&quot;</span><span class="p">)</span>
     <span class="n">raw_data</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
@@ -752,12 +752,12 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<div class="highlight"><pre>Loading data
+<div class="highlight"><pre><span></span>Loading data
 11238 claims and classifications loaded
 </pre></div>
 
 
-<div class="highlight"><pre><span class="c1"># Create our Y vector as before</span>
+<div class="highlight"><pre><span></span><span class="c1"># Create our Y vector as before</span>
 <span class="kn">from</span> <span class="nn">keras.utils</span> <span class="kn">import</span> <span class="n">to_categorical</span>
 <span class="kn">from</span> <span class="nn">sklearn.preprocessing</span> <span class="kn">import</span> <span class="n">LabelEncoder</span>
 
@@ -774,12 +774,12 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<div class="highlight"><pre><span class="nt">Our</span> <span class="nt">classes</span> <span class="nt">are</span> <span class="nt">now</span> <span class="nt">a</span> <span class="nt">matrix</span> <span class="nt">of</span> <span class="o">(</span><span class="nt">11238</span><span class="o">,</span> <span class="nt">8</span><span class="o">)</span>
+<div class="highlight"><pre><span></span><span class="nt">Our</span> <span class="nt">classes</span> <span class="nt">are</span> <span class="nt">now</span> <span class="nt">a</span> <span class="nt">matrix</span> <span class="nt">of</span> <span class="o">(</span><span class="nt">11238</span><span class="o">,</span> <span class="nt">8</span><span class="o">)</span>
 <span class="nt">Original</span> <span class="nt">label</span><span class="o">:</span> <span class="nt">A</span><span class="o">;</span> <span class="nt">Converted</span> <span class="nt">label</span><span class="o">:</span> <span class="cp">[</span><span class="mi">1</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span><span class="cp">]</span>
 </pre></div>
 
 
-<div class="highlight"><pre><span class="c1"># Let&#39;s start with decreasing our dimensionality</span>
+<div class="highlight"><pre><span></span><span class="c1"># Let&#39;s start with decreasing our dimensionality</span>
 
 <span class="kn">from</span> <span class="nn">keras.preprocessing.text</span> <span class="kn">import</span> <span class="n">Tokenizer</span>
 
@@ -795,12 +795,12 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<div class="highlight"><pre>Our data has the following dimensionality:  (11238, 2500)
+<div class="highlight"><pre><span></span>Our data has the following dimensionality:  (11238, 2500)
 </pre></div>
 
 
 <p>We are going to leave our SVC classifier for these experiments as it took too long to train.</p>
-<div class="highlight"><pre><span class="kn">import</span> <span class="nn">numpy</span>
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span>
 <span class="kn">from</span> <span class="nn">sklearn.model_selection</span> <span class="kn">import</span> <span class="n">cross_val_score</span>
 <span class="kn">from</span> <span class="nn">sklearn.naive_bayes</span> <span class="kn">import</span> <span class="n">MultinomialNB</span>
 <span class="kn">from</span> <span class="nn">sklearn.neural_network</span> <span class="kn">import</span> <span class="n">MLPClassifier</span>
@@ -815,7 +815,7 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 <span class="n">Y_integers</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 
 <span class="k">for</span> <span class="n">clf</span> <span class="ow">in</span> <span class="n">classifiers</span><span class="p">:</span>
-    <span class="n">name</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
     <span class="n">scores</span> <span class="o">=</span> <span class="n">cross_val_score</span><span class="p">(</span><span class="n">clf</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y_integers</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
     <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">((</span>
         <span class="n">name</span><span class="p">,</span> 
@@ -833,7 +833,7 @@ dict_keys([&#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_loss&#39;]
 </pre></div>
 
 
-<div class="highlight"><pre>Classifier MultinomialNB has an average classification accuracy of 57.04 (0.97)
+<div class="highlight"><pre><span></span>Classifier MultinomialNB has an average classification accuracy of 57.04 (0.97)
 Classifier MLPClassifier has an average classification accuracy of 60.17 (1.07)
 </pre></div>
 
@@ -850,7 +850,7 @@ Classifier MLPClassifier has an average classification accuracy of 60.17 (1.07)
 </ul>
 <p>We see a slight reduction in accuracy, although we are on or close to the bounds of variance. Reducing our dimensionality does not seem to be the way to proceed.</p>
 <p>Even though our SVC classifier performed well in the spot-checks - it takes a very long time to train. For these more general experiments, we will thus limit to the Naive Bayes and the MLP classifier.</p>
-<div class="highlight"><pre><span class="c1"># Now let&#39;s increase our dimensionality</span>
+<div class="highlight"><pre><span></span><span class="c1"># Now let&#39;s increase our dimensionality</span>
 
 <span class="c1"># Delete our earlier data</span>
 <span class="k">del</span> <span class="n">X</span><span class="p">,</span> <span class="n">t</span>
@@ -871,7 +871,7 @@ Classifier MLPClassifier has an average classification accuracy of 60.17 (1.07)
     <span class="n">MLPClassifier</span><span class="p">()</span>
 <span class="p">]</span>
 <span class="k">for</span> <span class="n">clf</span> <span class="ow">in</span> <span class="n">classifiers</span><span class="p">:</span>
-    <span class="n">name</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
     <span class="n">scores</span> <span class="o">=</span> <span class="n">cross_val_score</span><span class="p">(</span><span class="n">clf</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y_integers</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
     <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">((</span>
         <span class="n">name</span><span class="p">,</span> 
@@ -889,7 +889,7 @@ Classifier MLPClassifier has an average classification accuracy of 60.17 (1.07)
 </pre></div>
 
 
-<div class="highlight"><pre>Our data has the following dimensionality:  (11238, 10000)
+<div class="highlight"><pre><span></span>Our data has the following dimensionality:  (11238, 10000)
 Classifier MultinomialNB has an average classification accuracy of 59.26 (1.16)
 Classifier MLPClassifier has an average classification accuracy of 62.11 (0.36)
 </pre></div>
@@ -903,7 +903,7 @@ Classifier MLPClassifier has an average classification accuracy of 62.11 (0.36)
 <p>There does appear to be a small increase in performance (~2% - where variance is ~1%). So more words does help us. However, it does not help as much as we would expect it too (e.g. doubling our number of counted words does not double performance).</p>
 <p>This indicates that much of our classification is being performed on a limited set of terms.  </p>
 <p>Let's see what another doubling of our dimensionality does...</p>
-<div class="highlight"><pre><span class="c1"># Delete our earlier data</span>
+<div class="highlight"><pre><span></span><span class="c1"># Delete our earlier data</span>
 <span class="k">del</span> <span class="n">X</span><span class="p">,</span> <span class="n">t</span>
 
 <span class="kn">from</span> <span class="nn">keras.preprocessing.text</span> <span class="kn">import</span> <span class="n">Tokenizer</span>
@@ -922,7 +922,7 @@ Classifier MLPClassifier has an average classification accuracy of 62.11 (0.36)
     <span class="n">MLPClassifier</span><span class="p">()</span>
 <span class="p">]</span>
 <span class="k">for</span> <span class="n">clf</span> <span class="ow">in</span> <span class="n">classifiers</span><span class="p">:</span>
-    <span class="n">name</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
     <span class="n">scores</span> <span class="o">=</span> <span class="n">cross_val_score</span><span class="p">(</span><span class="n">clf</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y_integers</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
     <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">((</span>
         <span class="n">name</span><span class="p">,</span> 
@@ -940,7 +940,7 @@ Classifier MLPClassifier has an average classification accuracy of 62.11 (0.36)
 </pre></div>
 
 
-<div class="highlight"><pre>Our data has the following dimensionality:  (11238, 20000)
+<div class="highlight"><pre><span></span>Our data has the following dimensionality:  (11238, 20000)
 Classifier MultinomialNB has an average classification accuracy of 59.24 (1.33)
 Classifier MLPClassifier has an average classification accuracy of 61.91 (0.43)
 </pre></div>
@@ -955,7 +955,7 @@ Classifier MLPClassifier has an average classification accuracy of 61.91 (0.43)
 <p>Another aside on speed: the Naive Bayes classifier is much faster to train than the MLP classifier, and the difference in performance is only 1-2%. If we were looking at a production system, there may be a benefit in using the Naive Bayes classifier over the more fancy deep-learning approaches.</p>
 <h3>Changing Data Conversion Methods</h3>
 <p>The texts_to_matrix method for the text tokeniser has for different modes: "binary", "count", "tfidf", "freq". These are not explained but it is presumed that binary provides just an indication of presence for a word, and count/freq provide un-normalised count data. Looking at the <a href="https://github.com/keras-team/keras/blob/master/keras/preprocessing/text.py">source</a>, freq divides the count c by the length of the sequence. </p>
-<div class="highlight"><pre><span class="n">modes</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;binary&quot;</span><span class="p">,</span> <span class="s2">&quot;count&quot;</span><span class="p">,</span> <span class="s2">&quot;freq&quot;</span><span class="p">]</span>
+<div class="highlight"><pre><span></span><span class="n">modes</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;binary&quot;</span><span class="p">,</span> <span class="s2">&quot;count&quot;</span><span class="p">,</span> <span class="s2">&quot;freq&quot;</span><span class="p">]</span>
 
 <span class="k">for</span> <span class="n">mode</span> <span class="ow">in</span> <span class="n">modes</span><span class="p">:</span>
     <span class="c1"># create the tokenizer</span>
@@ -965,7 +965,7 @@ Classifier MLPClassifier has an average classification accuracy of 61.91 (0.43)
 
     <span class="n">X</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">texts_to_matrix</span><span class="p">(</span><span class="n">docs</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">clf</span> <span class="ow">in</span> <span class="n">classifiers</span><span class="p">:</span>
-        <span class="n">name</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
         <span class="n">scores</span> <span class="o">=</span> <span class="n">cross_val_score</span><span class="p">(</span><span class="n">clf</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y_integers</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
 
         <span class="k">print</span><span class="p">(</span>
@@ -979,7 +979,7 @@ Classifier MLPClassifier has an average classification accuracy of 61.91 (0.43)
 </pre></div>
 
 
-<div class="highlight"><pre>Mode binary - Classifier MultinomialNB has an average classification accuracy of 57.07 (0.82)
+<div class="highlight"><pre><span></span>Mode binary - Classifier MultinomialNB has an average classification accuracy of 57.07 (0.82)
 Mode binary - Classifier MLPClassifier has an average classification accuracy of 59.63 (0.71)
 Mode count - Classifier MultinomialNB has an average classification accuracy of 57.53 (0.89)
 Mode count - Classifier MLPClassifier has an average classification accuracy of 59.00 (0.63)
@@ -1001,7 +1001,7 @@ Mode freq - Classifier MLPClassifier has an average classification accuracy of 5
 <h3>Getting More Data</h3>
 <p>Let's see what happens when we try 20,000 claims. </p>
 <p>At the moment the interface for getting the data is a little slow...</p>
-<div class="highlight"><pre><span class="c1"># Now try 20,000 patent publications at random</span>
+<div class="highlight"><pre><span></span><span class="c1"># Now try 20,000 patent publications at random</span>
 
 <span class="kn">import</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">pickle</span>
 
@@ -1009,7 +1009,7 @@ Mode freq - Classifier MLPClassifier has an average classification accuracy of 5
 </pre></div>
 
 
-<div class="highlight"><pre><span class="c1"># Get the claim 1 and classificationt text</span>
+<div class="highlight"><pre><span></span><span class="c1"># Get the claim 1 and classificationt text</span>
 
 <span class="n">PIK</span> <span class="o">=</span> <span class="s2">&quot;claim_and_class20k.data&quot;</span>
 
@@ -1052,13 +1052,13 @@ Mode freq - Classifier MLPClassifier has an average classification accuracy of 5
 </pre></div>
 
 
-<div class="highlight"><pre>Loading data
+<div class="highlight"><pre><span></span>Loading data
 19001 claims and classifications loaded
 </pre></div>
 
 
 <p>We got a memory error after 19000 but that is still more data than we had before. Let's use that. You can find the "claim_and_class20k.data" file in the GitHub directory if you want to load the data yourself.</p>
-<div class="highlight"><pre><span class="n">PIK</span> <span class="o">=</span> <span class="s2">&quot;raw_data20k.pkl&quot;</span>
+<div class="highlight"><pre><span></span><span class="n">PIK</span> <span class="o">=</span> <span class="s2">&quot;raw_data20k.pkl&quot;</span>
 
 <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">PIK</span><span class="p">):</span>
     <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">PIK</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
@@ -1086,19 +1086,19 @@ Mode freq - Classifier MLPClassifier has an average classification accuracy of 5
 </pre></div>
 
 
-<div class="highlight"><pre>Loading data
+<div class="highlight"><pre><span></span>Loading data
 </pre></div>
 
 
-<div class="highlight"><pre><span class="k">print</span><span class="p">(</span><span class="s2">&quot;We have {0} data samples left after cleaning.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)))</span>
+<div class="highlight"><pre><span></span><span class="k">print</span><span class="p">(</span><span class="s2">&quot;We have {0} data samples left after cleaning.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)))</span>
 </pre></div>
 
 
-<div class="highlight"><pre>We have 17712 data samples left after cleaning.
+<div class="highlight"><pre><span></span>We have 17712 data samples left after cleaning.
 </pre></div>
 
 
-<div class="highlight"><pre><span class="kn">from</span> <span class="nn">keras.utils</span> <span class="kn">import</span> <span class="n">to_categorical</span>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">keras.utils</span> <span class="kn">import</span> <span class="n">to_categorical</span>
 <span class="kn">from</span> <span class="nn">sklearn.preprocessing</span> <span class="kn">import</span> <span class="n">LabelEncoder</span>
 
 <span class="n">Y_class</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
@@ -1128,7 +1128,7 @@ Mode freq - Classifier MLPClassifier has an average classification accuracy of 5
 </pre></div>
 
 
-<div class="highlight"><pre><span class="nt">Our</span> <span class="nt">classes</span> <span class="nt">are</span> <span class="nt">now</span> <span class="nt">a</span> <span class="nt">matrix</span> <span class="nt">of</span> <span class="o">(</span><span class="nt">17712</span><span class="o">,</span> <span class="nt">8</span><span class="o">)</span>
+<div class="highlight"><pre><span></span><span class="nt">Our</span> <span class="nt">classes</span> <span class="nt">are</span> <span class="nt">now</span> <span class="nt">a</span> <span class="nt">matrix</span> <span class="nt">of</span> <span class="o">(</span><span class="nt">17712</span><span class="o">,</span> <span class="nt">8</span><span class="o">)</span>
 <span class="nt">Original</span> <span class="nt">label</span><span class="o">:</span> <span class="nt">G</span><span class="o">;</span> <span class="nt">Converted</span> <span class="nt">label</span><span class="o">:</span> <span class="cp">[</span><span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">1</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span><span class="cp">]</span>
 <span class="nt">Our</span> <span class="nt">data</span> <span class="nt">has</span> <span class="nt">the</span> <span class="nt">following</span> <span class="nt">dimensionality</span><span class="o">:</span>  <span class="o">(</span><span class="nt">17712</span><span class="o">,</span> <span class="nt">5000</span><span class="o">)</span>
 <span class="nt">An</span> <span class="nt">example</span> <span class="nt">array</span> <span class="nt">is</span><span class="o">:</span>  <span class="cp">[</span><span class="mi">0</span><span class="nx">.</span>         <span class="mf">2.19509726</span> <span class="mf">1.66470012</span> <span class="mi">0</span><span class="nx">.</span>         <span class="mf">1.21538639</span> <span class="mf">1.66504906</span>
@@ -1151,12 +1151,12 @@ Mode freq - Classifier MLPClassifier has an average classification accuracy of 5
 </pre></div>
 
 
-<div class="highlight"><pre><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;encoded_data20k.pkl&quot;</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<div class="highlight"><pre><span></span><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;encoded_data20k.pkl&quot;</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
     <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">((</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">),</span> <span class="n">f</span><span class="p">)</span>
 </pre></div>
 
 
-<div class="highlight"><pre><span class="kn">import</span> <span class="nn">numpy</span>
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span>
 <span class="kn">from</span> <span class="nn">sklearn.model_selection</span> <span class="kn">import</span> <span class="n">cross_val_score</span>
 <span class="kn">from</span> <span class="nn">sklearn.naive_bayes</span> <span class="kn">import</span> <span class="n">MultinomialNB</span>
 <span class="kn">from</span> <span class="nn">sklearn.neural_network</span> <span class="kn">import</span> <span class="n">MLPClassifier</span>
@@ -1171,7 +1171,7 @@ Mode freq - Classifier MLPClassifier has an average classification accuracy of 5
 <span class="n">Y_integers</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 
 <span class="k">for</span> <span class="n">clf</span> <span class="ow">in</span> <span class="n">classifiers</span><span class="p">:</span>
-    <span class="n">name</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
     <span class="n">scores</span> <span class="o">=</span> <span class="n">cross_val_score</span><span class="p">(</span><span class="n">clf</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y_integers</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
     <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">((</span>
         <span class="n">name</span><span class="p">,</span> 
@@ -1195,13 +1195,13 @@ Mode freq - Classifier MLPClassifier has an average classification accuracy of 5
 <li>Classifier MLPClassifier has an average classification accuracy of 62.38 (0.88)</li>
 </ul>
 <p>So possibly a very small improvement but well within the realms of statistical variance. Let us see if more data helps with our keras model.</p>
-<div class="highlight"><pre><span class="kn">from</span> <span class="nn">keras.models</span> <span class="kn">import</span> <span class="n">Sequential</span>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">keras.models</span> <span class="kn">import</span> <span class="n">Sequential</span>
 <span class="kn">from</span> <span class="nn">keras.layers</span> <span class="kn">import</span> <span class="n">Dense</span><span class="p">,</span> <span class="n">Activation</span><span class="p">,</span> <span class="n">Dropout</span>
 <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
 </pre></div>
 
 
-<div class="highlight"><pre><span class="n">input_dim</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+<div class="highlight"><pre><span></span><span class="n">input_dim</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
 <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Our input dimension for our claim representation is {0}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">input_dim</span><span class="p">))</span>
 
 <span class="n">no_classes</span> <span class="o">=</span> <span class="n">Y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
@@ -1209,12 +1209,12 @@ Mode freq - Classifier MLPClassifier has an average classification accuracy of 5
 </pre></div>
 
 
-<div class="highlight"><pre>Our input dimension for our claim representation is 5000
+<div class="highlight"><pre><span></span>Our input dimension for our claim representation is 5000
 Our output dimension is 8
 </pre></div>
 
 
-<div class="highlight"><pre><span class="k">def</span> <span class="nf">keras_model</span><span class="p">():</span>
+<div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">keras_model</span><span class="p">():</span>
     <span class="c1"># create model</span>
     <span class="n">model</span> <span class="o">=</span> <span class="n">Sequential</span><span class="p">()</span>
     <span class="n">model</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Dense</span><span class="p">(</span><span class="mi">500</span><span class="p">,</span> <span class="n">input_dim</span><span class="o">=</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="s1">&#39;relu&#39;</span><span class="p">))</span>
@@ -1249,7 +1249,7 @@ Our output dimension is 8
 </pre></div>
 
 
-<div class="highlight"><pre>Our input dimension for our claim representation is 5000
+<div class="highlight"><pre><span></span>Our input dimension for our claim representation is 5000
 Our output dimension is 8
 _________________________________________________________________
 Layer (type)                 Output Shape              Param #   
@@ -1287,15 +1287,15 @@ dict_keys([&#39;val_loss&#39;, &#39;val_acc&#39;, &#39;loss&#39;, &#39;acc&#39;]
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/4C_output_13_1.png" /></p>
-<p><img alt="png" src="https://benhoyle.github.io/images/4C_output_13_2.png" /></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/4C_output_13_1.png"></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/4C_output_13_2.png"></p>
 <p>Our accuracy appears to have improved by 1-2%. This is still a small increase though, and possibly within the variance of our classifier. Let's try with regularisation, which had the best effect to prevent overfitting.</p>
-<div class="highlight"><pre><span class="kn">from</span> <span class="nn">keras.regularizers</span> <span class="kn">import</span> <span class="n">l2</span> <span class="c1"># L2-regularisation</span>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">keras.regularizers</span> <span class="kn">import</span> <span class="n">l2</span> <span class="c1"># L2-regularisation</span>
 <span class="n">l2_lambda</span> <span class="o">=</span> <span class="mf">0.1</span>
 </pre></div>
 
 
-<div class="highlight"><pre><span class="k">def</span> <span class="nf">keras_reg_model</span><span class="p">():</span>
+<div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">keras_reg_model</span><span class="p">():</span>
     <span class="c1"># create model</span>
     <span class="n">model</span> <span class="o">=</span> <span class="n">Sequential</span><span class="p">()</span>
     <span class="n">model</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Dense</span><span class="p">(</span><span class="mi">500</span><span class="p">,</span> <span class="n">input_dim</span><span class="o">=</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="s1">&#39;relu&#39;</span><span class="p">,</span> <span class="n">kernel_regularizer</span><span class="o">=</span><span class="n">l2</span><span class="p">(</span><span class="n">l2_lambda</span><span class="p">)))</span>
@@ -1329,7 +1329,7 @@ dict_keys([&#39;val_loss&#39;, &#39;val_acc&#39;, &#39;loss&#39;, &#39;acc&#39;]
 </pre></div>
 
 
-<div class="highlight"><pre>_________________________________________________________________
+<div class="highlight"><pre><span></span>_________________________________________________________________
 Layer (type)                 Output Shape              Param #   
 =================================================================
 dense_3 (Dense)              (None, 500)               2500500   
@@ -1359,7 +1359,7 @@ Epoch 7/10
 
 
 <p>Gvien our results so far - let's try a multilayer model with regularisation and aggressive dropout.</p>
-<div class="highlight"><pre><span class="k">def</span> <span class="nf">keras_best_model</span><span class="p">():</span>
+<div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">keras_best_model</span><span class="p">():</span>
     <span class="c1"># create model</span>
     <span class="n">model</span> <span class="o">=</span> <span class="n">Sequential</span><span class="p">()</span>
     <span class="n">model</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Dropout</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">input_shape</span><span class="o">=</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,)))</span>
@@ -1399,7 +1399,7 @@ Epoch 7/10
 </pre></div>
 
 
-<div class="highlight"><pre>_________________________________________________________________
+<div class="highlight"><pre><span></span>_________________________________________________________________
 Layer (type)                 Output Shape              Param #   
 =================================================================
 dropout_3 (Dropout)          (None, 5000)              0         
@@ -1447,10 +1447,10 @@ dict_keys([&#39;val_loss&#39;, &#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;]
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/4C_output_18_1.png" /></p>
-<p><img alt="png" src="https://benhoyle.github.io/images/4C_output_18_2.png" /></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/4C_output_18_1.png"></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/4C_output_18_2.png"></p>
 <p>Maybe that's too aggressive on the regularisation...</p>
-<div class="highlight"><pre><span class="n">l2_lambda</span> <span class="o">=</span> <span class="mf">0.05</span>
+<div class="highlight"><pre><span></span><span class="n">l2_lambda</span> <span class="o">=</span> <span class="mf">0.05</span>
 
 <span class="k">def</span> <span class="nf">keras_best_model</span><span class="p">():</span>
     <span class="c1"># create model</span>
@@ -1491,7 +1491,7 @@ dict_keys([&#39;val_loss&#39;, &#39;val_acc&#39;, &#39;acc&#39;, &#39;loss&#39;]
 </pre></div>
 
 
-<div class="highlight"><pre>_________________________________________________________________
+<div class="highlight"><pre><span></span>_________________________________________________________________
 Layer (type)                 Output Shape              Param #   
 =================================================================
 dropout_2 (Dropout)          (None, 5000)              0         
@@ -1717,14 +1717,14 @@ dict_keys([&#39;val_loss&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_acc&#39;]
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/4C_output_20_1.png" /></p>
-<p><img alt="png" src="https://benhoyle.github.io/images/4C_output_20_2.png" /></p>
-<hr />
+<p><img alt="png" src="https://benhoyle.github.io/images/4C_output_20_1.png"></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/4C_output_20_2.png"></p>
+<hr>
 <h2>Increasing Performance with Ensembles</h2>
 <p>How do each of our preferred machine learning algorithms build their models? If they each have different strengths and weaknesses we may be able to build an ensemble model that outperforms the individual performance.</p>
 <h3>Looking at the Confusion Matrix for Insights</h3>
 <p>Luckily scikit-learn provides a <a href="http://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html">helpful example</a> that shows how to plot a confusion matrix. We will use this code below.</p>
-<div class="highlight"><pre><span class="kn">import</span> <span class="nn">itertools</span>
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">itertools</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
 
@@ -1767,7 +1767,7 @@ dict_keys([&#39;val_loss&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_acc&#39;]
 </pre></div>
 
 
-<div class="highlight"><pre><span class="c1"># create the tokenizer</span>
+<div class="highlight"><pre><span></span><span class="c1"># create the tokenizer</span>
 <span class="n">t</span> <span class="o">=</span> <span class="n">Tokenizer</span><span class="p">(</span><span class="n">num_words</span><span class="o">=</span><span class="mi">5000</span><span class="p">)</span>
 <span class="c1"># fit the tokenizer on the documents</span>
 <span class="n">t</span><span class="o">.</span><span class="n">fit_on_texts</span><span class="p">(</span><span class="n">docs</span><span class="p">)</span>
@@ -1801,7 +1801,7 @@ dict_keys([&#39;val_loss&#39;, &#39;acc&#39;, &#39;loss&#39;, &#39;val_acc&#39;]
 </pre></div>
 
 
-<div class="highlight"><pre>Normalized confusion matrix
+<div class="highlight"><pre><span></span>Normalized confusion matrix
 [[0.34 0.14 0.22 0.01 0.11 0.07 0.1  0.01]
  [0.02 0.52 0.11 0.03 0.09 0.13 0.07 0.03]
  [0.08 0.1  0.73 0.   0.01 0.02 0.02 0.04]
@@ -1822,12 +1822,12 @@ Normalized confusion matrix
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/4a_output_19_1.png" /></p>
-<p><img alt="png" src="https://benhoyle.github.io/images/4a_output_19_2.png" /></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/4a_output_19_1.png"></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/4a_output_19_2.png"></p>
 <h4>Observations on the Confusion Matrix</h4>
 <p>The Naive Bayes classifier performs better than the MLP classifier for Sections C, D, E, F and G. The MLP classifier performs better for Sections A, B, and H. </p>
 <p>This suggests that an ensemble of both classifiers may work at improving performance. scikit-learn has a method to use both hard and soft voting <a href="http://scikit-learn.org/stable/modules/ensemble.html">here</a>.</p>
-<div class="highlight"><pre><span class="kn">from</span> <span class="nn">sklearn.ensemble</span> <span class="kn">import</span> <span class="n">VotingClassifier</span>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">sklearn.ensemble</span> <span class="kn">import</span> <span class="n">VotingClassifier</span>
 
 <span class="n">estimators</span> <span class="o">=</span> <span class="p">[]</span>
 <span class="n">estimators</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">&#39;NB&#39;</span><span class="p">,</span> <span class="n">NBclf</span><span class="p">))</span>
@@ -1838,45 +1838,45 @@ Normalized confusion matrix
 </pre></div>
 
 
-<div class="highlight"><pre><span class="n">scores</span>
+<div class="highlight"><pre><span></span><span class="n">scores</span>
 </pre></div>
 
 
-<div class="highlight"><pre>array([0.61, 0.59, 0.6 , 0.6 , 0.6 ])
+<div class="highlight"><pre><span></span>array([0.61, 0.59, 0.6 , 0.6 , 0.6 ])
 </pre></div>
 
 
-<div class="highlight"><pre><span class="n">scores</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">*</span><span class="mi">100</span>
+<div class="highlight"><pre><span></span><span class="n">scores</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">*</span><span class="mi">100</span>
 </pre></div>
 
 
-<div class="highlight"><pre>59.89522060313159
+<div class="highlight"><pre><span></span>59.89522060313159
 </pre></div>
 
 
-<div class="highlight"><pre><span class="n">scores</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="o">*</span><span class="mi">100</span>
+<div class="highlight"><pre><span></span><span class="n">scores</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="o">*</span><span class="mi">100</span>
 </pre></div>
 
 
-<div class="highlight"><pre>0.7295624868552363
+<div class="highlight"><pre><span></span>0.7295624868552363
 </pre></div>
 
 
-<div class="highlight"><pre><span class="c1"># Trying soft voting</span>
+<div class="highlight"><pre><span></span><span class="c1"># Trying soft voting</span>
 <span class="n">ensemble</span> <span class="o">=</span> <span class="n">VotingClassifier</span><span class="p">(</span><span class="n">estimators</span><span class="p">,</span> <span class="n">voting</span> <span class="o">=</span> <span class="s2">&quot;soft&quot;</span><span class="p">)</span>
 <span class="n">scores</span> <span class="o">=</span> <span class="n">cross_val_score</span><span class="p">(</span><span class="n">ensemble</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y_integers</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
 </pre></div>
 
 
-<div class="highlight"><pre><span class="n">scores</span>
+<div class="highlight"><pre><span></span><span class="n">scores</span>
 </pre></div>
 
 
-<div class="highlight"><pre>array([0.61, 0.59, 0.6 , 0.6 , 0.6 ])
+<div class="highlight"><pre><span></span>array([0.61, 0.59, 0.6 , 0.6 , 0.6 ])
 </pre></div>
 
 
-<div class="highlight"><pre><span class="n">EN_y_pred</span> <span class="o">=</span> <span class="n">ensemble</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><span class="n">EN_y_pred</span> <span class="o">=</span> <span class="n">ensemble</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
 
 <span class="c1"># Compute confusion matrix</span>
 <span class="n">EN_cnf_matrix</span> <span class="o">=</span> <span class="n">confusion_matrix</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">EN_y_pred</span><span class="p">)</span>
@@ -1892,7 +1892,7 @@ Normalized confusion matrix
 </pre></div>
 
 
-<div class="highlight"><pre>Normalized confusion matrix
+<div class="highlight"><pre><span></span>Normalized confusion matrix
 [[0.37 0.14 0.21 0.01 0.09 0.07 0.1  0.02]
  [0.02 0.52 0.11 0.02 0.09 0.12 0.07 0.04]
  [0.08 0.1  0.73 0.   0.01 0.01 0.02 0.04]
@@ -1904,12 +1904,12 @@ Normalized confusion matrix
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/4a_output_27_2.png" /></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/4a_output_27_2.png"></p>
     </div>
     <hr/>
     <footer>
       <ul class="list-inline">
-        <li class="list-inline-item text-muted" title="2018-03-23T10:19:19.216717+00:00">
+        <li class="list-inline-item text-muted" title="2018-03-23T14:41:39.389610+00:00">
           <i class="fa fa-clock-o"></i>
           Fri 23 March 2018
         </li>
