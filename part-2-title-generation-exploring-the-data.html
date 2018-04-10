@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <!-- Required meta tags -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <title>  2. Title Generation - Exploring the Data | Machine Learning Projects
+</title>
+  <link rel="canonical" href="https://benhoyle.github.io/part-2-title-generation-exploring-the-data.html">
+
+
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/font-awesome.min.css">
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/pygments/default.min.css">
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/theme.css">
+
+  <link rel="alternate" type="application/atom+xml" title="Full Atom Feed"
+        href="https://benhoyle.github.io/feeds/all.atom.xml">
+  <link rel="alternate" type="application/atom+xml" title="Categories Atom Feed"
+        href="https://benhoyle.github.io/feeds/title-generation.atom.xml">  
+  <meta name="description" content="This post explores the data for our title generation experiments.">
+
+
+</head>
+
+<body>
+  <header class="header">
+    <div class="container">
+<div class="row">
+  <div class="col-sm-12">
+    <h1 class="title"><a href="https://benhoyle.github.io/">Machine Learning Projects</a></h1>
+      <p class="text-muted">A selection of machine learning projects</p>
+  </div>
+</div>    </div>
+  </header>
+
+  <div class="main">
+    <div class="container">
+  <article class="article">
+    <div class="content">
+      <h1>2. Title Generation - Exploring the Data</h1>
+<p>In the previous post we looked at the problem for our current project: how to generate a patent title based on our claim text.</p>
+<p>In this post we will look at the steps required to prepare some data for our machine learning algorithms. We will also look at the nature of the data, which may give us some insights as to how we transform our data in later stages.</p>
+<hr>
+<h2>Select Data</h2>
+<p>I have a Mongo Database with data from a set of G06 US Patent Publications. On my system 10000 data samples take up around 16MB (16724852 bytes). It thus seems possible to start with a dataset of 30000 samples. I have used this to generate a pickle file with the data that may be downloaded. </p>
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">pickle</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="n">PIK</span> <span class="o">=</span> <span class="s2">&quot;claim_and_title.data&quot;</span>
+
+<span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">PIK</span><span class="p">):</span>
+    <span class="c1"># Download file</span>
+    <span class="err">!</span><span class="n">wget</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">benhoyle</span><span class="o">.</span><span class="n">github</span><span class="o">.</span><span class="n">io</span><span class="o">/</span><span class="n">notebooks</span><span class="o">/</span><span class="n">title_generation</span><span class="o">/</span><span class="n">claim_and_title</span><span class="o">.</span><span class="n">data</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">PIK</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Loading data&quot;</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;{0} samples loaded&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)))</span>
+
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;An example title:&quot;</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;----&quot;</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;An example claim:&quot;</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>Loading data
+30000 samples loaded
+An example title: System and method for session restoration at geo-redundant gateways
+----
+An example claim: 
+1. A method for managing a backup service gateway (SGW) associated with a primary SGW, the method comprising:
+periodically receiving from the primary SGW at least a portion of corresponding UE session state information, the received portion of session state information being sufficient to enable the backup SGW to indicate to an inquiring management entity that UEs having an active session supported by the primary SGW are in a live state; and
+in response to a failure of the primary SGW, the backup SGW assuming management of IP addresses and paths associated with said primary SGW and transmitting a Downlink Data Notification (DDN) toward a Mobility Management Entity (MME) for each of said UEs having an active session supported by the failed primary SGW to detach from the network and reattach to the network, wherein each DDN causes the MME to send a detach request with a reattach request code to the respective UE.
+</pre></div>
+
+
+<hr>
+<h2>2. Exploring the Data</h2>
+<p>The code above generates a list of data samples of the form <code>(claim1_text, title)</code>, where <code>claim1_text</code> is a string representing the text of claim 1 and <code>title</code> is a string representing the title text.</p>
+<p>First we can double check there are no cancelled claims.</p>
+<div class="highlight"><pre><span></span><span class="c1"># Check for and remove &#39;cancelled&#39; claims</span>
+<span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span> <span class="k">if</span> <span class="s1">&#39;(canceled)&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;There are now {0} claims after filtering out cancelled claims&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)))</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>There are now 30000 claims after filtering out cancelled claims
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">length</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">])</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;Our longest claim is {0} characters long.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">length</span><span class="p">))</span>
+
+<span class="n">length</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">])</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;Our longest title is {0} characters long.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">length</span><span class="p">))</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>Our longest claim is 15887 characters long.
+Our longest title is 484 characters long.
+</pre></div>
+
+
+<p>At the moment our data is in the form of a string. This is represented as a sequence of characters. When building our models we can choose to work at either the character or word level. </p>
+<p>Working at the character level has an advantage of operating in a lower dimensionality space (typically we have 26 lower case characters plus some punctuation - so around 30 different symbols). Also we can take our string as is. However, character level models take much longer to train, and are more likely to produce unrecognisable strings. In the "character" case, our model needs to learn what "words" are as part of its training!</p>
+<p>Working at the word level increases our dimensionality by orders of magnitude (typically to a size of a vocabulary, which can be 10s or 100s of thousands of words). However, our model may be quicker to train, and may produce more recognisable output. </p>
+<p>Words require an additional pre-processing step: tokenisation. This splits our string into word tokens. There are several options for tokenisation, including:</p>
+<ul>
+<li>the <a href="https://keras.io/preprocessing/text/#tokenizer">Tokenizer</a> text utility class in Keras;</li>
+<li><a href="https://spacy.io/">spaCy</a>; or</li>
+<li>an <a href="http://www.nltk.org/book/ch03.html">NLTK word tokeniser</a> plus a custom word-to-integer conversion.</li>
+</ul>
+<p>I have found that spaCy has a better word tokenisation accuracy and is easier to integrate with other data such as part-of-speech and dependency parse information. It is slower though for large datasets. The NLTK tokeniser is faster, but requires a custom function to map words to integers.</p>
+<p>The Keras tokenizer is fast but rather naive - it appears to simply split based on spaces.</p>
+<h3>Basic Tokenization</h3>
+<p>One plan is to start with the Keras tokenizer and then look to change the tokenization strategy once we have a baseline model.</p>
+<p>We will first look at some statistics regarding the text. This can inform parameters such as our vocabulary cut-off value.</p>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">keras.preprocessing</span> <span class="kn">import</span> <span class="n">text</span>
+<span class="n">t_claim</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">Tokenizer</span><span class="p">(</span>
+                <span class="n">num_words</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> 
+                <span class="n">filters</span><span class="o">=</span><span class="s1">&#39;1.:;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span>
+                <span class="n">lower</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                <span class="n">split</span><span class="o">=</span><span class="s2">&quot; &quot;</span><span class="p">,</span>
+                <span class="n">char_level</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                <span class="n">oov_token</span><span class="o">=</span><span class="s2">&quot;&lt;UNK&gt;&quot;</span>
+<span class="p">)</span>
+<span class="n">X_texts</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+<span class="n">t_claim</span><span class="o">.</span><span class="n">fit_on_texts</span><span class="p">(</span><span class="n">X_texts</span><span class="p">)</span>
+<span class="n">X_seqs</span> <span class="o">=</span> <span class="n">t_claim</span><span class="o">.</span><span class="n">texts_to_sequences</span><span class="p">(</span><span class="n">X_texts</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">t_title</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">Tokenizer</span><span class="p">(</span> 
+                <span class="n">num_words</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                <span class="n">lower</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                <span class="n">char_level</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                <span class="n">oov_token</span><span class="o">=</span><span class="s2">&quot;&lt;UNK&gt;&quot;</span>
+<span class="p">)</span>
+<span class="n">Y_texts</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+<span class="n">t_title</span><span class="o">.</span><span class="n">fit_on_texts</span><span class="p">(</span><span class="n">Y_texts</span><span class="p">)</span>
+<span class="n">Y_seqs</span> <span class="o">=</span> <span class="n">t_title</span><span class="o">.</span><span class="n">texts_to_sequences</span><span class="p">(</span><span class="n">Y_texts</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="k">print</span><span class="p">(</span><span class="s2">&quot;Our input sequences (claims) have a vocabulary of {0} words&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">max</span><span class="p">([</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">t_claim</span><span class="o">.</span><span class="n">word_index</span><span class="o">.</span><span class="n">items</span><span class="p">()])))</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;Our output sequences (titles) have a vocabulary of {0} words&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">max</span><span class="p">([</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">t_title</span><span class="o">.</span><span class="n">word_index</span><span class="o">.</span><span class="n">items</span><span class="p">()])))</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>Our input sequences (claims) have a vocabulary of 53390 words
+Our output sequences (titles) have a vocabulary of 11078 words
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="k">print</span><span class="p">(</span><span class="n">X_texts</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">X_seqs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>1. A method for managing a backup service gateway (SGW) associated with a primary SGW, the method comprising:
+periodically receiving from the primary SGW at least a portion of corresponding UE session state information, the received portion of session state information being sufficient to enable the backup SGW to indicate to an inquiring management entity that UEs having an active session supported by the primary SGW are in a live state; and
+in response to a failure of the primary SGW, the backup SGW assuming management of IP addresses and paths associated with said primary SGW and transmitting a Downlink Data Notification (DDN) toward a Mobility Management Entity (MME) for each of said UEs having an active session supported by the failed primary SGW to detach from the network and reattach to the network, wherein each DDN causes the MME to send a detach request with a reattach request code to the respective UE.
+
+ [2, 33, 9, 583, 2, 552, 95, 1214, 34040, 37, 20, 2, 359, 26583, 1, 33, 25, 1959, 56, 19, 1, 359, 16009, 14, 24, 2, 70, 3, 49, 4109, 360, 118, 242, 1, 86, 70, 3, 360, 118, 27, 46, 2321, 4, 755, 1, 552, 16009, 4, 940, 4, 11, 6683, 160, 273, 23, 14826, 58, 11, 497, 360, 1544, 15, 1, 359, 16009, 48, 6, 2, 1852, 118, 5, 6, 68, 4, 2, 970, 3, 1, 359, 26583, 1, 552, 16009, 7142, 160, 3, 685, 732, 5, 1053, 37, 20, 16, 359, 16009, 5, 270, 2, 6913, 10, 481, 34041, 1601, 2, 5537, 160, 273, 19599, 9, 28, 3, 16, 14826, 58, 11, 497, 360, 1544, 15, 1, 2428, 359, 16009, 4, 16010, 19, 1, 60, 5, 26584, 4, 1, 302, 17, 28, 34042, 898, 1, 14827, 4, 733, 2, 16010, 62, 20, 2, 26584, 62, 98, 4, 1, 100, 4109]
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="k">print</span><span class="p">(</span><span class="n">Y_texts</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">Y_seqs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>System and method for session restoration at geo-redundant gateways [4, 1, 3, 2, 381, 1181, 164, 3020, 773, 3307]
+</pre></div>
+
+
+<h4>Claim Length</h4>
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+
+<span class="o">%</span><span class="n">matplotlib</span> <span class="n">inline</span>
+
+<span class="n">X_length</span> <span class="o">=</span> <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">X_seqs</span><span class="p">]</span>
+<span class="n">max_length</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">X_length</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;Our longest sequence is {0} tokens long.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">max_length</span><span class="p">))</span>
+
+<span class="n">bins</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">max_length</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">X_length</span><span class="p">,</span> <span class="n">bins</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Claim 1 - Sequence Length&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;No. of claims&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Sequence Length (words)&#39;</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>Our longest sequence is 2310 tokens long.
+</pre></div>
+
+
+<p><img alt="png" src="https://benhoyle.github.io/images/TG_2_output_16_1.png"></p>
+<p>So even though our maximum claim length is 2310 words, we see this maximum length is a clear outlier. The mass of our claim length distribution resides between 0 and 500 words. Let's zoom in on that.</p>
+<div class="highlight"><pre><span></span><span class="c1"># Let&#39;s zoom in on 0 to 500</span>
+<span class="n">bins</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">500</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">X_length</span><span class="p">,</span> <span class="n">bins</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Claim 1 - Sequence Length&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;No. of claims&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Sequence Length (words)&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+
+
+<p><img alt="png" src="https://benhoyle.github.io/images/TG_2_output_18_0.png"></p>
+<p>Interestingly the distribution of claim lengths seems to be log-normal. This matches the distributions described in this <a href="https://jakevdp.github.io/blog/2017/11/09/exploring-line-lengths-in-python-packages/">blogpost on computer program line lengths</a>. Funny how both code and patent claims have a similar distribution for sequence length. </p>
+<p>This is something to remember when thinking about later generative models and regularisation: a "good" generative model should replicate this log-normal distribution.</p>
+<h4>Title Length</h4>
+<div class="highlight"><pre><span></span><span class="n">Y_length</span> <span class="o">=</span> <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">Y_seqs</span><span class="p">]</span>
+<span class="n">max_y_length</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">Y_length</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;Our longest sequence is {0} tokens long.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">max_y_length</span><span class="p">))</span>
+
+<span class="n">bins</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">max_y_length</span><span class="p">,</span> <span class="mi">80</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">Y_length</span><span class="p">,</span> <span class="n">bins</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Title - Sequence Length&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;No. of samples&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Sequence Length (words)&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>Our longest sequence is 77 tokens long.
+</pre></div>
+
+
+<p><img alt="png" src="https://benhoyle.github.io/images/TG_2_output_21_1.png"></p>
+<p>Again 77 words seems a clear outlier. Let's zoom in on 0 to 30 where most of the distribution lies.</p>
+<div class="highlight"><pre><span></span><span class="n">bins</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">Y_length</span><span class="p">,</span> <span class="n">bins</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Title - Sequence Length&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;No. of samples&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Sequence Length (words)&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+
+
+<p><img alt="png" src="https://benhoyle.github.io/images/TG_2_output_23_0.png"></p>
+<p>Here we could probably limit our output length to 15-20 while still capturing most of the data. The modal length is around 7.</p>
+<p>Again we appear to have a log-normal distribution.</p>
+<h3>Dimensionality Issues</h3>
+<p>This exploration of the data raises some issues for our initial models. We have high dimensionality on two fronts: </p>
+<ol>
+<li>Our vocabularies are respectively ~50k and ~10k. For cross-entropy using one-hot vectors, this would require vectors of ~50k and ~10k in length. This would not only be slow to train but could lead us to run out of memory. Most "toy" problems have a maximum vocabulary of around 5000 words.</li>
+<li>Most sequence-to-sequence models operate on fixed-length vectors. These are typically set based on a maximum sequence length. If a sequence is below the maximum sequence length the vector is normally zero-padded, i.e. zeros are added to fill up any missing elements in the sequence. Our maximum sequence lengths are 2310 and 77 - but most of our data is much shorter, e.g. below 500 and 30 elements.</li>
+</ol>
+<p>It seems sensible to perform some filtering to address 2. Let's see how many samples we are left with if we limit our sequences to different lengths.</p>
+<div class="highlight"><pre><span></span><span class="n">limits</span> <span class="o">=</span> <span class="p">[</span><span class="mi">100</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="mi">250</span><span class="p">,</span> <span class="mi">300</span><span class="p">,</span> <span class="mi">400</span><span class="p">,</span> <span class="mi">500</span><span class="p">]</span>
+<span class="n">count</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span> 
+<span class="k">for</span> <span class="n">limit</span> <span class="ow">in</span> <span class="n">limits</span><span class="p">:</span>
+    <span class="n">count</span><span class="p">[</span><span class="n">limit</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">X_seqs</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">limit</span><span class="p">:</span>
+            <span class="n">count</span><span class="p">[</span><span class="n">limit</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;With limit {0} there are {1} samples&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">limit</span><span class="p">,</span> <span class="n">count</span><span class="p">[</span><span class="n">limit</span><span class="p">]))</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>With limit 100 there are 2424 samples
+With limit 200 there are 16171 samples
+With limit 250 there are 21753 samples
+With limit 300 there are 25307 samples
+With limit 400 there are 28462 samples
+With limit 500 there are 29421 samples
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">limits</span> <span class="o">=</span> <span class="p">[</span><span class="mi">10</span><span class="p">,</span> <span class="mi">15</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">50</span><span class="p">]</span>
+<span class="n">count</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span> 
+<span class="k">for</span> <span class="n">limit</span> <span class="ow">in</span> <span class="n">limits</span><span class="p">:</span>
+    <span class="n">count</span><span class="p">[</span><span class="n">limit</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">Y_seqs</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">limit</span><span class="p">:</span>
+            <span class="n">count</span><span class="p">[</span><span class="n">limit</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;With limit {0} there are {1} samples&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">limit</span><span class="p">,</span> <span class="n">count</span><span class="p">[</span><span class="n">limit</span><span class="p">]))</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>With limit 10 there are 18199 samples
+With limit 15 there are 26598 samples
+With limit 20 there are 29051 samples
+With limit 30 there are 29901 samples
+With limit 40 there are 29984 samples
+With limit 50 there are 29993 samples
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">filtered_seqs</span> <span class="o">=</span> <span class="p">[(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span><span class="n">y</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">X_seqs</span><span class="p">,</span> <span class="n">Y_seqs</span><span class="p">)</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">300</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">20</span><span class="p">]</span>
+<span class="nb">len</span><span class="p">(</span><span class="n">filtered_seqs</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>24575
+</pre></div>
+
+
+<p>We lose ~5000 examples if we limit our sequence lengths to 300 and 20 respectively. This seems a good trade-off.</p>
+<p>On the vocabulary side we also have a number of options.</p>
+<ul>
+<li>As a first approach we can simply limit our vocabulary, e.g. by only using the top V words and setting everything else to UNK.</li>
+<li>We can use a large vocabulary but with a hierarchical or differentiated softmax. This article <a href="http://ruder.io/word-embeddings-softmax/">here</a> by Sebastian Ruder explains some of the options. Differentiated softmax is recommended <a href="http://www.aclweb.org/anthology/P16-1186">here</a>. However, there is no native keras implementation for this - meaning we need to get into custom models in Tensorflow. This may be outside the scope of the current project.</li>
+<li>We could switch to using character-level input on either the output or for both sequences.</li>
+<li>We could look at hybrid approaches that use word portions. Again, this may be out of the scope of this project.</li>
+</ul>
+<p>To start let's limit our vocabulary to 5000 words on the input and 2500 words on the output. Later we can try to look at the effect of doubling this.</p>
+<h2>Label Data</h2>
+<p>To enable us to work with sequence-to-sequence models, it can help to add START and STOP tokens to our output title sequences. These need to be unique tokens that are not used in our vocabulary and that are not filtered out by the text tokenizer. These could be "startseq" and "endseq".</p>
+<h2>Format Data</h2>
+<p>Initially we will implement a word level sequence-to-sequence model as set out in this <a href="https://blog.keras.io/a-ten-minute-introduction-to-sequence-to-sequence-learning-in-keras.html">blog post</a> (see the bonus FAQ at the bottom for a word-level example). </p>
+<p>This requires the following data structures:</p>
+<ul>
+<li>encoder_input_data is a 2D array of shape (num_samples, max_claim_length) </li>
+<li>decoder_input_data is a 2D array of shape (num_samples, max_title_length) </li>
+<li>decoder_target_data is a 3D array of shape (num_samples, max_title_length, title_vocab_length) containing one-hot encodings of the word index integers that is shifted by one timestep (i.e. by one word into the future to provide the next word)</li>
+</ul>
+<p>We also need to set the following parameters:</p>
+<ul>
+<li>max_claim_length (based on our analysis above we can filter to limit to 300 words)</li>
+<li>max_title_length (based on our analysis above we can filter to limit to 20 words)</li>
+<li>num_encoder_tokens = claim_vocab_length (based on our analysis above we can start at 5000 but later explore expanding)</li>
+<li>num_decoder_tokens = title_vocab_length (based on our analysis above we can start at 2500 but later explore expanding)</li>
+<li>batch_size (the example sets this to 64 - it could be 16, 32 or 64 to start)</li>
+<li>epochs (the example sets this to 100 - we may initially reduce this to look at performance)</li>
+</ul>
+<p>In the next post we will use this information to start building our model.</p>
+    </div>
+    <hr/>
+    <footer>
+      <ul class="list-inline">
+        <li class="list-inline-item text-muted" title="2018-04-10T14:30:08.519347+01:00">
+          <i class="fa fa-clock-o"></i>
+          Tue 10 April 2018
+        </li>
+        <li class="list-inline-item">
+          <i class="fa fa-folder-open-o"></i>
+          <a href="https://benhoyle.github.io/category/title-generation.html">Title Generation</a>
+        </li>
+          <li class="list-inline-item">
+            <i class="fa fa-user-o"></i>
+              <a href="https://benhoyle.github.io/author/ben-hoyle.html">Ben Hoyle</a>          </li>
+          <li class="list-inline-item">
+            <i class="fa fa-files-o"></i>
+              <a href="https://benhoyle.github.io/tag/preparing_data.html">#preparing_data</a>          </li>
+      </ul>
+    </footer>
+  </article>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+<div class="row">
+  <p class="col-sm-6 text-sm-left">
+    <a href="https://www.linkedin.com/in/benhoyle/" class="text-muted" target="_blank">Ben Hoyle</a>
+  </p>
+  <p class="col-sm-6 text-sm-right text-muted">
+    Generated by <a href="https://github.com/getpelican/pelican" class="text-muted" target="_blank">Pelican</a>
+    / <a href="https://github.com/nairobilug/pelican-alchemy" class="text-muted" target="_blank">Adapted from &#x2728;</a>
+  </p>
+</div>    </div>
+  </footer>
+</body>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script>
+$( document ).ready(function() {
+    $('table').addClass('table table-bordered');
+    $('tbody').addClass('table-striped');
+    $('th').addClass('text-center');
+});
+</script></html>

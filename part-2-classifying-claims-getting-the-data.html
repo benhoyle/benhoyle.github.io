@@ -132,7 +132,7 @@ Once we have the patent publications, we need to extract the text for claim 1 an
 - we need to filter out "cancelled" claims - these have the text '(canceled)' rather than any claim text;
 - we need to convert the list of string classifications to just a Section letter; and
 - sometimes we have strange or non-standard character encodings that can screw up our text processing, the character encodings can thus be cleaned and any non-standard characters replaced.</p>
-<h3>Removing Cancelled Claimes</h3>
+<h3>Removing Cancelled Claims</h3>
 <p>The following codes removes claims that are cancelled (these just have "(canceled)" as text).</p>
 <div class="highlight"><pre><span></span><span class="c1"># Check for and remove &#39;cancelled&#39; claims</span>
 <span class="n">no_cancelled</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span> <span class="k">if</span> <span class="s1">&#39;(canceled)&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
@@ -398,9 +398,9 @@ An example array is:  [ 0.          0.          2.43021996  2.08331543  1.715706
     <hr/>
     <footer>
       <ul class="list-inline">
-        <li class="list-inline-item text-muted" title="2018-03-22T18:31:12.678169+00:00">
+        <li class="list-inline-item text-muted" title="2018-04-01T16:08:41.553395+01:00">
           <i class="fa fa-clock-o"></i>
-          Thu 22 March 2018
+          Sun 01 April 2018
         </li>
         <li class="list-inline-item">
           <i class="fa fa-folder-open-o"></i>
