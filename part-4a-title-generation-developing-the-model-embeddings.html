@@ -6,9 +6,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
-  <title>  3. Title Generation - Initial Model | Practical Machine Learning Adventures
+  <title>  4A. Title Generation - Developing the Model - Embeddings | Practical Machine Learning Adventures
 </title>
-  <link rel="canonical" href="https://benhoyle.github.io/part-3-title-generation-initial-model.html">
+  <link rel="canonical" href="https://benhoyle.github.io/part-4a-title-generation-developing-the-model-embeddings.html">
 
 
   <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/bootstrap.min.css">
@@ -20,7 +20,7 @@
         href="https://benhoyle.github.io/feeds/all.atom.xml">
   <link rel="alternate" type="application/atom+xml" title="Categories Atom Feed"
         href="https://benhoyle.github.io/feeds/title-generation.atom.xml">  
-  <meta name="description" content="This post looks at implementing an initial model.">
+  <meta name="description" content="This post looks at developing our initial models to include state of the art features to improve results.">
   <script>
     (function(i, s, o, g, r, a, m) {
       i['GoogleAnalyticsObject'] = r;
@@ -55,13 +55,113 @@
     <div class="container">
   <article class="article">
     <div class="content">
-      <h1>3. Title Generation - Initial Model</h1>
-<p>Given our analysis in the previous post we will now construct our model.</p>
+      <h1>4A. Title Generation - Developing the Model - Embeddings</h1>
+<p>This post looks at developing our initial models to include state of the art features to improve results.</p>
+<p>To recap:</p>
+<ul>
+<li>We have two models: the Ludwig model and the Chollet/Brownlee model. </li>
+<li>Performance so far has been fairly poor.</li>
+<li>Each model had slightly different characteristics - the Ludwig model produced better formed output but seemed to simply memorise and repeat titles, the Chollet/Brownlee model had a lower loss and appeared to memorise less but produced more nonsensical outputs.</li>
+</ul>
+<p>In our last post we identified a number of ways to improve our models:</p>
+<ol>
+<li>Use GloVe encodings and a shared embedding layer. </li>
+<li>Add attention.</li>
+<li>Add pointers / skip connections between our input and our output.</li>
+<li>Use a coverage measure.</li>
+<li>Use different word forms such as lemmas or stems.</li>
+<li>Use a GAN-style discriminator on the output.</li>
+<li>Improve our sampling by employing beam search.</li>
+</ol>
+<p>Over the next set of posts, we will look at the first two of these in detail. This post starts with using pre-trained embedding weights and an embedding layer that is shared across the encoder and decoder input.</p>
+<div class="highlight"><pre><span></span><span class="c1"># Imports </span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">os</span>
+</pre></div>
+
+
+<h2>Using Pre-trained Shared Embeddings</h2>
+<p>Here we will look at two complementary modifications to our model:</p>
+<ul>
+<li>We can speed-up our training by using a set of pre-trained embedding weights; and</li>
+<li>As the encoder and decoder both take words with a similar vocabulary as input, we can share a single set of weights between the encoder and decoder.</li>
+</ul>
+<h3>Pre-trained Embedding Weights</h3>
+<p>There are several different ways to generate and use a set of pre-trained word embeddings. Two very common approaches are to use either pretrained <a href="https://nlp.stanford.edu/projects/glove/">GloVe</a> or <a href="https://code.google.com/archive/p/word2vec/">Word2Vec</a> embeddings. Anecdotally, for small toy projects, both have similar characteristics. The GloVe vectors are the easiest to download and use, so we'll start with those.  </p>
+<p>As a start, I recommend using the 100 dimension vectors generated from a crawl of 6 billion words. This can be downloaded as a text file from <a href="http://nlp.stanford.edu/data/glove.6B.zip">here</a>. This is to be placed in a <code>/glove</code> directory.</p>
+<p>Then we follow the steps from Ludwig's example to generate our embedding matrix. </p>
+<p>The code below reads the entries in the text file and generates a dictionary indexed by a word with a numpy array containing the embedding vector as an entry.</p>
+<div class="highlight"><pre><span></span><span class="n">GLOVE_DIR</span> <span class="o">=</span> <span class="s2">&quot;glove/&quot;</span>
+
+<span class="n">embeddings_index</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="c1"># For Python 3 tweaked to add &#39;rb&#39;</span>
+<span class="n">f</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GLOVE_DIR</span><span class="p">,</span> <span class="s1">&#39;glove.6B.100d.txt&#39;</span><span class="p">),</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="c1"># Tweaked to decode the binary text values</span>
+    <span class="n">word</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+    <span class="n">coefs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">)</span>
+    <span class="n">embeddings_index</span><span class="p">[</span><span class="n">word</span><span class="p">]</span> <span class="o">=</span> <span class="n">coefs</span>
+<span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="nb">len</span><span class="p">(</span><span class="n">embeddings_index</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>400000
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="nb">list</span><span class="p">(</span><span class="n">embeddings_index</span><span class="o">.</span><span class="n">keys</span><span class="p">())[</span><span class="mi">0</span><span class="p">:</span><span class="mi">10</span><span class="p">]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>[&#39;irati&#39;,
+ &#39;fotiou&#39;,
+ &#39;8-year&#39;,
+ &#39;usagi&#39;,
+ &#39;autobianchi&#39;,
+ &#39;eldercare&#39;,
+ &#39;puraskar&#39;,
+ &#39;dench&#39;,
+ &#39;ventrally&#39;,
+ &#39;amsc&#39;]
+</pre></div>
+
+
+<p>As we can see there are 400,000 words. Some of which are fairly arcane (note "eldercare", which is a US-centric term). Below is the 100d word embedding vector for "the".</p>
+<div class="highlight"><pre><span></span><span class="n">embeddings_index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;the&#39;</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>array([-0.038194, -0.24487 ,  0.72812 , -0.39961 ,  0.083172,  0.043953,
+       -0.39141 ,  0.3344  , -0.57545 ,  0.087459,  0.28787 , -0.06731 ,
+        0.30906 , -0.26384 , -0.13231 , -0.20757 ,  0.33395 , -0.33848 ,
+       -0.31743 , -0.48336 ,  0.1464  , -0.37304 ,  0.34577 ,  0.052041,
+        0.44946 , -0.46971 ,  0.02628 , -0.54155 , -0.15518 , -0.14107 ,
+       -0.039722,  0.28277 ,  0.14393 ,  0.23464 , -0.31021 ,  0.086173,
+        0.20397 ,  0.52624 ,  0.17164 , -0.082378, -0.71787 , -0.41531 ,
+        0.20335 , -0.12763 ,  0.41367 ,  0.55187 ,  0.57908 , -0.33477 ,
+       -0.36559 , -0.54857 , -0.062892,  0.26584 ,  0.30205 ,  0.99775 ,
+       -0.80481 , -3.0243  ,  0.01254 , -0.36942 ,  2.2167  ,  0.72201 ,
+       -0.24978 ,  0.92136 ,  0.034514,  0.46745 ,  1.1079  , -0.19358 ,
+       -0.074575,  0.23353 , -0.052062, -0.22044 ,  0.057162, -0.15806 ,
+       -0.30798 , -0.41625 ,  0.37972 ,  0.15006 , -0.53212 , -0.2055  ,
+       -1.2526  ,  0.071624,  0.70565 ,  0.49744 , -0.42063 ,  0.26148 ,
+       -1.538   , -0.30223 , -0.073438, -0.28312 ,  0.37104 , -0.25217 ,
+        0.016215, -0.017099, -0.38984 ,  0.87424 , -0.72569 , -0.51058 ,
+       -0.52028 , -0.1459  ,  0.8278  ,  0.27062 ], dtype=float32)
+</pre></div>
+
+
 <hr>
-<h2>Load and Tokenize Data</h2>
+<h3>Loading and Tokenizing Data</h3>
+<p>Initially we load our data as before. Our tokenizing routine changes a little, as we will use a common tokenizer on both the claim text and title. This allows us to use a shared embedding layer.</p>
 <div class="highlight"><pre><span></span><span class="c1"># Set parameters</span>
 <span class="n">num_decoder_tokens</span> <span class="o">=</span> <span class="mi">2500</span> <span class="c1"># This is our output title vocabulary</span>
-<span class="n">num_encoder_tokens</span> <span class="o">=</span> <span class="mi">5000</span> <span class="c1"># This is our input claim vocabulary</span>
+<span class="n">num_encoder_tokens</span> <span class="o">=</span> <span class="mi">2500</span> <span class="c1"># This is our input claim vocabulary</span>
 <span class="n">encoder_seq_length</span> <span class="o">=</span> <span class="mi">300</span> <span class="c1"># This is our limit for our input claim length</span>
 <span class="n">decoder_seq_length</span> <span class="o">=</span> <span class="mi">22</span> <span class="c1"># This is our limit for our output title length - 20 + 2 for start/stop</span>
 </pre></div>
@@ -106,38 +206,61 @@ in response to a failure of the primary SGW, the backup SGW assuming management 
 </pre></div>
 
 
-<p>Initially, we will begin with separate tokenizers for the input and the output. </p>
-<p>(In later investigations it would seem sensible to use a common tokenizer for both input and output (as we can argue they both use the same pool of words). This could also help lead on to the use of a shared embedding later. But, we are getting ahead of ourselves...)</p>
 <div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">keras.preprocessing</span> <span class="kn">import</span> <span class="n">text</span>
-<span class="n">t_claim</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">Tokenizer</span><span class="p">(</span>
+<span class="n">t_joint</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">Tokenizer</span><span class="p">(</span>
                 <span class="n">num_words</span><span class="o">=</span><span class="n">num_encoder_tokens</span><span class="p">,</span> 
-                <span class="n">filters</span><span class="o">=</span><span class="s1">&#39;1.:;</span><span class="se">\n</span><span class="s1">()&#39;</span><span class="p">,</span>
                 <span class="n">lower</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
-                <span class="n">split</span><span class="o">=</span><span class="s2">&quot; &quot;</span><span class="p">,</span>
                 <span class="n">char_level</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
                 <span class="n">oov_token</span><span class="o">=</span><span class="s2">&quot;&lt;UNK&gt;&quot;</span>
 <span class="p">)</span>
 <span class="n">X_texts</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
-<span class="n">t_claim</span><span class="o">.</span><span class="n">fit_on_texts</span><span class="p">(</span><span class="n">X_texts</span><span class="p">)</span>
-<span class="n">X_seqs</span> <span class="o">=</span> <span class="n">t_claim</span><span class="o">.</span><span class="n">texts_to_sequences</span><span class="p">(</span><span class="n">X_texts</span><span class="p">)</span>
-
-<span class="n">t_title</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">Tokenizer</span><span class="p">(</span> 
-                <span class="n">num_words</span><span class="o">=</span><span class="n">num_decoder_tokens</span><span class="p">,</span>
-                <span class="n">lower</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
-                <span class="n">char_level</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
-                <span class="n">oov_token</span><span class="o">=</span><span class="s2">&quot;&lt;UNK&gt;&quot;</span>
-<span class="p">)</span>
 <span class="n">Y_texts</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
-<span class="n">t_title</span><span class="o">.</span><span class="n">fit_on_texts</span><span class="p">(</span><span class="n">Y_texts</span><span class="p">)</span>
-<span class="n">Y_seqs</span> <span class="o">=</span> <span class="n">t_title</span><span class="o">.</span><span class="n">texts_to_sequences</span><span class="p">(</span><span class="n">Y_texts</span><span class="p">)</span>
-
-<span class="k">print</span><span class="p">(</span><span class="s2">&quot;Our input sequences (claims) have a vocabulary of {0} words&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">max</span><span class="p">([</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">t_claim</span><span class="o">.</span><span class="n">word_index</span><span class="o">.</span><span class="n">items</span><span class="p">()])))</span>
-<span class="k">print</span><span class="p">(</span><span class="s2">&quot;Our output sequences (titles) have a vocabulary of {0} words&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">max</span><span class="p">([</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">t_title</span><span class="o">.</span><span class="n">word_index</span><span class="o">.</span><span class="n">items</span><span class="p">()])))</span>
+<span class="n">total_texts</span> <span class="o">=</span> <span class="n">X_texts</span> <span class="o">+</span> <span class="n">Y_texts</span>
+<span class="n">t_joint</span><span class="o">.</span><span class="n">fit_on_texts</span><span class="p">(</span><span class="n">total_texts</span><span class="p">)</span>
 </pre></div>
 
 
-<div class="highlight"><pre><span></span>Our input sequences (claims) have a vocabulary of 49376 words
-Our output sequences (titles) have a vocabulary of 11080 words
+<div class="highlight"><pre><span></span><span class="o">/</span><span class="n">usr</span><span class="o">/</span><span class="n">local</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">python3</span><span class="o">.</span><span class="mi">5</span><span class="o">/</span><span class="n">dist</span><span class="o">-</span><span class="n">packages</span><span class="o">/</span><span class="n">h5py</span><span class="o">/</span><span class="fm">__init__</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">36</span><span class="p">:</span> <span class="ne">FutureWarning</span><span class="p">:</span> <span class="n">Conversion</span> <span class="n">of</span> <span class="n">the</span> <span class="n">second</span> <span class="n">argument</span> <span class="n">of</span> <span class="n">issubdtype</span> <span class="kn">from</span> <span class="sb">`float`</span> <span class="n">to</span> <span class="sb">`np.floating`</span> <span class="ow">is</span> <span class="n">deprecated</span><span class="o">.</span> <span class="n">In</span> <span class="n">future</span><span class="p">,</span> <span class="n">it</span> <span class="n">will</span> <span class="n">be</span> <span class="n">treated</span> <span class="k">as</span> <span class="sb">`np.float64 == np.dtype(float).type`</span><span class="o">.</span>
+  <span class="kn">from</span> <span class="nn">._conv</span> <span class="kn">import</span> <span class="n">register_converters</span> <span class="k">as</span> <span class="n">_register_converters</span>
+<span class="n">Using</span> <span class="n">TensorFlow</span> <span class="n">backend</span><span class="o">.</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="nb">list</span><span class="p">(</span><span class="n">t_joint</span><span class="o">.</span><span class="n">word_index</span><span class="o">.</span><span class="n">keys</span><span class="p">())[</span><span class="mi">0</span><span class="p">:</span><span class="mi">10</span><span class="p">]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>[&#39;remapper&#39;,
+ &#39;inactive&#39;,
+ &#39;imposes&#39;,
+ &#39;overestimates&#39;,
+ &#39;roman&#39;,
+ &#39;mitigating&#39;,
+ &quot;location&#39;s&quot;,
+ &#39;56a&#39;,
+ &#39;buckle&#39;,
+ &#39;billable&#39;]
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">X_seqs</span> <span class="o">=</span> <span class="n">t_joint</span><span class="o">.</span><span class="n">texts_to_sequences</span><span class="p">(</span><span class="n">X_texts</span><span class="p">)</span>
+<span class="n">Y_seqs</span> <span class="o">=</span> <span class="n">t_joint</span><span class="o">.</span><span class="n">texts_to_sequences</span><span class="p">(</span><span class="n">Y_texts</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;Our input sequences (claims) have a max integer value of {0}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">max</span><span class="p">([</span><span class="nb">max</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">X_seqs</span><span class="p">])))</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;Our output sequences (titles) have a max integer value of {0}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">max</span><span class="p">([</span><span class="nb">max</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">Y_seqs</span><span class="p">])))</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>Our input sequences (claims) have a max integer value of 2499
+Our output sequences (titles) have a vocabulary of 2499 words
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">vocab_size</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="nb">max</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">y</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">X_seqs</span><span class="p">,</span> <span class="n">Y_seqs</span><span class="p">)])</span> <span class="o">+</span> <span class="mi">1</span>
+<span class="n">vocab_size</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>2500
 </pre></div>
 
 
@@ -160,6 +283,40 @@ Our longest output sequence is 22 tokens long.
 </pre></div>
 
 
+<h3>Building the Word Embedding Matrix</h3>
+<p>Now we have a dictionary of numpy arrays indexed by word strings and a dictionary of ranked words from the Keras tokenizer we can build the matrix to use as the initial weights for our shared embedding layer.</p>
+<p>We need to filter the tokenizer dictionary to remove all words that are ranked less than our number of alloted tokens for the encoder and decoder inputs (e.g. all with ranks less than the vocabulary size of 2500).</p>
+<p>We then iterate through our words from the tokenizer dictionary and link the word index integers with the embedding vectors.</p>
+<div class="highlight"><pre><span></span><span class="n">word_embedding_size</span> <span class="o">=</span> <span class="mi">100</span> <span class="c1"># As we are using the Glove 100d data</span>
+<span class="k">print</span><span class="p">(</span><span class="s1">&#39;Found {0} word vectors.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">embeddings_index</span><span class="p">)))</span>
+<span class="n">embedding_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">vocab_size</span><span class="p">,</span> <span class="n">word_embedding_size</span><span class="p">))</span>
+
+<span class="c1"># Filter our vocab to only the used items</span>
+<span class="n">words</span> <span class="o">=</span> <span class="p">[(</span><span class="n">w</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">w</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">t_joint</span><span class="o">.</span><span class="n">word_index</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">vocab_size</span><span class="p">]</span>
+
+<span class="c1"># This is from https://machinelearningmastery.com/use-word-embedding-layers-deep-learning-keras/      </span>
+<span class="k">for</span> <span class="n">word</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">words</span><span class="p">:</span>
+    <span class="n">embedding_vector</span> <span class="o">=</span> <span class="n">embeddings_index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">word</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">embedding_vector</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">embedding_matrix</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">embedding_vector</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>Found 400000 word vectors.
+</pre></div>
+
+
+<p>The resultant matrix should be of shape : vocabulary size by GloVe dimensions = 2500 x 100.</p>
+<div class="highlight"><pre><span></span><span class="n">embedding_matrix</span><span class="o">.</span><span class="n">shape</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>(2500, 100)
+</pre></div>
+
+
+<h3>Finish Preparing Data</h3>
+<p>Now we just finish preparing the data by padding as before.</p>
 <div class="highlight"><pre><span></span><span class="k">print</span><span class="p">(</span><span class="n">X_texts</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">X_seqs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
 <span class="k">print</span><span class="p">(</span><span class="n">Y_texts</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">Y_seqs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
 </pre></div>
@@ -169,8 +326,8 @@ Our longest output sequence is 22 tokens long.
 periodically receiving from the primary SGW at least a portion of corresponding UE session state information, the received portion of session state information being sufficient to enable the backup SGW to indicate to an inquiring management entity that UEs having an active session supported by the primary SGW are in a live state; and
 in response to a failure of the primary SGW, the backup SGW assuming management of IP addresses and paths associated with said primary SGW and transmitting a Downlink Data Notification (DDN) toward a Mobility Management Entity (MME) for each of said UEs having an active session supported by the failed primary SGW to detach from the network and reattach to the network, wherein each DDN causes the MME to send a detach request with a reattach request code to the respective UE.
 
- [2, 33, 9, 584, 2, 552, 95, 1217, 37, 20, 2, 363, 1, 33, 25, 1953, 56, 19, 1, 363, 14, 24, 2, 70, 3, 49, 3528, 364, 118, 244, 1, 86, 70, 3, 364, 118, 27, 46, 2315, 4, 754, 1, 552, 4, 944, 4, 11, 160, 275, 23, 58, 11, 500, 364, 1542, 15, 1, 363, 48, 6, 2, 1852, 118, 5, 6, 68, 4, 2, 974, 3, 1, 363, 1, 552, 160, 3, 621, 735, 5, 1051, 37, 20, 16, 363, 5, 272, 2, 10, 485, 1603, 2, 160, 275, 9, 28, 3, 16, 58, 11, 500, 364, 1542, 15, 1, 2422, 363, 4, 19, 1, 60, 5, 4, 1, 305, 17, 28, 900, 1, 4, 736, 2, 62, 20, 2, 62, 98, 4, 1, 100, 3528]
-startseq System and method for session restoration at geo-redundant gateways stopseq [1, 6, 3, 5, 4, 383, 1183, 166, 775, 2]
+ [31, 2, 29, 8, 448, 2, 552, 91, 1047, 42, 19, 2, 397, 1, 29, 26, 1959, 51, 20, 1, 397, 14, 25, 2, 74, 3, 61, 352, 109, 28, 1, 96, 74, 3, 352, 109, 28, 58, 2214, 4, 782, 1, 552, 4, 1008, 4, 11, 142, 261, 24, 69, 11, 500, 352, 1510, 15, 1, 397, 60, 6, 2, 1672, 109, 5, 6, 75, 4, 2, 888, 3, 1, 397, 1, 552, 142, 3, 603, 685, 5, 937, 42, 19, 16, 397, 5, 252, 2, 9, 494, 1653, 2, 142, 261, 8, 32, 3, 16, 69, 11, 500, 352, 1510, 15, 1, 2193, 397, 4, 20, 1, 53, 5, 4, 1, 53, 18, 32, 957, 1, 4, 742, 2, 65, 19, 2, 65, 97, 4, 1, 118]
+startseq System and method for session restoration at geo-redundant gateways stopseq [34, 30, 5, 29, 8, 352, 14, 1836, 35]
 </pre></div>
 
 
@@ -184,28 +341,24 @@ startseq System and method for session restoration at geo-redundant gateways sto
 </pre></div>
 
 
-<div class="highlight"><pre><span></span><span class="n">Our</span> <span class="o">X</span> <span class="n">data</span> <span class="k">has</span> <span class="nb">shape</span> (<span class="mi">25529</span>, <span class="mi">300</span>) <span class="o">and</span> <span class="k">our</span> <span class="n">Y</span> <span class="n">data</span> <span class="k">has</span> <span class="nb">shape</span> (<span class="mi">25529</span>, <span class="mi">22</span>)
+<div class="highlight"><pre><span></span><span class="n">Our</span> <span class="o">X</span> <span class="n">data</span> <span class="k">has</span> <span class="nb">shape</span> (<span class="mi">25632</span>, <span class="mi">300</span>) <span class="o">and</span> <span class="k">our</span> <span class="n">Y</span> <span class="n">data</span> <span class="k">has</span> <span class="nb">shape</span> (<span class="mi">25632</span>, <span class="mi">22</span>)
 </pre></div>
 
 
-<h2>Models</h2>
-<p>We have a number of models we can try out. Initially we can run the models with minimal tweaking. Then later we can expand on the better models.</p>
-<p>The models we can use are as follows:</p>
-<ol>
-<li>The Chollet/Brownlee Model based on the <a href="https://machinelearningmastery.com/develop-encoder-decoder-model-sequence-sequence-prediction-keras/">sequential encoder-decoder system</a> as described by Jason Brownlee of Machine Learning Mastery, which is in turn based on a <a href="https://blog.keras.io/a-ten-minute-introduction-to-sequence-to-sequence-learning-in-keras.html">sequence-to-sequence model</a> as described by Francois Chollet; and</li>
-<li>The Ludwig Model <a href="https://github.com/oswaldoludwig/Seq2seq-Chatbot-for-Keras">chatbot encoder-decoder model</a> as described by Oswaldo Ludwig.</li>
-</ol>
-<p>All use Keras as this point. This helps to simplify our model and let us experiment with the basics.</p>
-<p>The original model in 1. is designed based on character data. We can either use at the character level or adapt to use word-level features, e.g. as suggested at the bottom of the Chollet blog post.</p>
-<p>The model in 2. uses word-level features. We are thus able to use this with less adaptation.</p>
-<h3>Ludwig Model</h3>
-<p>There are actually two models described by Oswaldo. A first introductory model and a second model that uses an additional adversarial network. The first model is easier to understand so we will start with that.</p>
-<p>The first introductory model has the following features:</p>
-<ul>
-<li>A source text input model based around an Embedding layer and an LSTM. The claim features (i.e. words as integers) are projected to a dense vector by the embedding layer and then fed into the LSTM. The last output timestep of the LSTM is then taken as the output. The output of the LSTM can be thought of as a "context vector" that represents the claim.</li>
-<li>A summary input model. This is similar to the source text input model. It has an Embedding layer and an LSTM. It takes a full or partial sequence of integers representing the words in our titles. The output of the last timestep is take as the output of the LSTM. The output of the LSTM can be thought of as an "answer vector" that represents a state of a current answer in time.</li>
-<li>The output of both models, i.e. the context vector and the answer vector are concatenated and fed into a feed forward or Dense layer that outputs a vector the size of our title vocabulary. A softmax activation is used to generate a pseudo-probability value. The output of the model is thus a vector of probabilities across the vocabulary of the title. This can then be compared with a one-hot encoding of the actual word.</li>
-</ul>
+<div class="highlight"><pre><span></span><span class="n">Y</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>array([  34,   30,    5,   29,    8,  352,   14, 1836,   35,    0,    0,
+          0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0],
+      dtype=int32)
+</pre></div>
+
+
+<hr>
+<h2>Adapting the Ludwig Model</h2>
+<p>We will now adapt the Ludwig model used in the previous post to use a shared embedding layer and the pre-trained GloVe vectors.</p>
+<p>This is fairly simple - we just define an embedding layer and initialise it with the generated embedding matrix. We then specify that it is to be used on both the encoder and decoder inputs.</p>
 <div class="highlight"><pre><span></span><span class="c1"># imports</span>
 <span class="kn">from</span> <span class="nn">keras.models</span> <span class="kn">import</span> <span class="n">Model</span>
 <span class="kn">from</span> <span class="nn">keras.layers</span> <span class="kn">import</span> <span class="n">Input</span><span class="p">,</span> <span class="n">LSTM</span><span class="p">,</span> <span class="n">Dense</span><span class="p">,</span> <span class="n">Embedding</span>
@@ -222,11 +375,17 @@ startseq System and method for session restoration at geo-redundant gateways sto
 
 <span class="c1"># source text input model</span>
 <span class="n">inputs1</span> <span class="o">=</span> <span class="n">Input</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">X_max_len</span><span class="p">,))</span>
-<span class="n">am1</span> <span class="o">=</span> <span class="n">Embedding</span><span class="p">(</span><span class="n">X_vocab_len</span><span class="p">,</span> <span class="mi">128</span><span class="p">)(</span><span class="n">inputs1</span><span class="p">)</span>
+<span class="c1">#am1 = Embedding(X_vocab_len, 128)(inputs1)</span>
+<span class="n">Shared_Embedding</span> <span class="o">=</span> <span class="n">Embedding</span><span class="p">(</span>
+    <span class="n">output_dim</span><span class="o">=</span><span class="n">word_embedding_size</span><span class="p">,</span> 
+    <span class="n">input_dim</span><span class="o">=</span><span class="n">vocab_size</span><span class="p">,</span> 
+    <span class="n">weights</span><span class="o">=</span><span class="p">[</span><span class="n">embedding_matrix</span><span class="p">]</span>
+<span class="p">)</span>
+<span class="n">am1</span> <span class="o">=</span> <span class="n">Shared_Embedding</span><span class="p">(</span><span class="n">inputs1</span><span class="p">)</span>
 <span class="n">am2</span> <span class="o">=</span> <span class="n">LSTM</span><span class="p">(</span><span class="mi">128</span><span class="p">)(</span><span class="n">am1</span><span class="p">)</span>
 <span class="c1"># summary input model</span>
 <span class="n">inputs2</span> <span class="o">=</span> <span class="n">Input</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">y_max_len</span><span class="p">,))</span>
-<span class="n">sm1</span> <span class="o">=</span> <span class="n">Embedding</span><span class="p">(</span><span class="n">y_vocab_len</span><span class="p">,</span> <span class="mi">128</span><span class="p">)(</span><span class="n">inputs2</span><span class="p">)</span>
+<span class="n">sm1</span> <span class="o">=</span> <span class="n">Shared_Embedding</span><span class="p">(</span><span class="n">inputs2</span><span class="p">)</span>
 <span class="n">sm2</span> <span class="o">=</span> <span class="n">LSTM</span><span class="p">(</span><span class="mi">128</span><span class="p">)(</span><span class="n">sm1</span><span class="p">)</span>
 <span class="c1"># decoder output model</span>
 <span class="n">decoder1</span> <span class="o">=</span> <span class="n">concatenate</span><span class="p">([</span><span class="n">am2</span><span class="p">,</span> <span class="n">sm2</span><span class="p">])</span>
@@ -244,37 +403,31 @@ startseq System and method for session restoration at geo-redundant gateways sto
 <div class="highlight"><pre><span></span>__________________________________________________________________________________________________
 Layer (type)                    Output Shape         Param #     Connected to                     
 ==================================================================================================
-input_1 (InputLayer)            (None, 300)          0                                            
+input_7 (InputLayer)            (None, 300)          0                                            
 __________________________________________________________________________________________________
-input_2 (InputLayer)            (None, 22)           0                                            
+input_8 (InputLayer)            (None, 22)           0                                            
 __________________________________________________________________________________________________
-embedding_1 (Embedding)         (None, 300, 128)     640000      input_1[0][0]                    
+embedding_3 (Embedding)         (None, 2500, 100)    250000      input_7[0][0]                    
+                                                                 input_8[0][0]                    
 __________________________________________________________________________________________________
-embedding_2 (Embedding)         (None, 22, 128)      320000      input_2[0][0]                    
+lstm_5 (LSTM)                   (None, 128)          117248      embedding_3[0][0]                
 __________________________________________________________________________________________________
-lstm_1 (LSTM)                   (None, 128)          131584      embedding_1[0][0]                
+lstm_6 (LSTM)                   (None, 128)          117248      embedding_3[1][0]                
 __________________________________________________________________________________________________
-lstm_2 (LSTM)                   (None, 128)          131584      embedding_2[0][0]                
+concatenate_2 (Concatenate)     (None, 256)          0           lstm_5[0][0]                     
+                                                                 lstm_6[0][0]                     
 __________________________________________________________________________________________________
-concatenate_1 (Concatenate)     (None, 256)          0           lstm_1[0][0]                     
-                                                                 lstm_2[0][0]                     
-__________________________________________________________________________________________________
-dense_1 (Dense)                 (None, 2500)         642500      concatenate_1[0][0]              
+dense_3 (Dense)                 (None, 2500)         642500      concatenate_2[0][0]              
 ==================================================================================================
-Total params: 1,865,668
-Trainable params: 1,865,668
+Total params: 1,126,996
+Trainable params: 1,126,996
 Non-trainable params: 0
 __________________________________________________________________________________________________
 </pre></div>
 
 
-<p>The model is fairly simple. However, a little bit of work is required to prepare our data for training. There are two main issues we need to address:</p>
-<ul>
-<li>The model requires a one-hot encoding for each word in the title. If our vocabulary is 2500 (relatively small) and our titles are limited to 20 words, we have a matrix of 50,000 items per data sample. If we have 25,000 data samples then we have 1.25 billion items. If each item is a 32 or 64-bit float we have a memory issue.</li>
-<li>The summary model is designed to take partially-complete sequences as the output sequence is built. We thus need to train on various levels of completeness. For example, if our title is 20 words long, we train with 1 word to predict the second word, 2 words to predict the third word, 3 words to predict the fourth word etc.</li>
-</ul>
-<p>To address the first issue, we train in smaller sets. For example, we can group 100 examples together and train on these.</p>
-<p>To address the second issue, we build up sets of partial titles for each training example.</p>
+<p>Now we see that the embedding is shared by both LSTMs. </p>
+<p>We can now build our model in pretty much the same way as before...</p>
 <div class="highlight"><pre><span></span><span class="c1"># We need to split into train and test data</span>
 <span class="kn">from</span> <span class="nn">sklearn.model_selection</span> <span class="kn">import</span> <span class="n">train_test_split</span>
 
@@ -287,13 +440,25 @@ ________________________________________________________________________________
 </pre></div>
 
 
+<div class="highlight"><pre><span></span><span class="n">Y</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>array([  34,   30,    5,   29,    8,  352,   14, 1836,   35,    0,    0,
+          0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0],
+      dtype=int32)
+</pre></div>
+
+
+<p>One small bug we had to fix is that we can now no longer hard-code the integer indexes for our start and stop control tokens. We thus use the word_index dictionary to look up the integer based on the text.</p>
 <div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">generate_set</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">i_end</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot; Generate the data for training/validation from X and Y.</span>
 <span class="sd">    i_end is the end of the set, i is the start.&quot;&quot;&quot;</span>
     <span class="n">set_size</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">limit_list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">sent</span> <span class="ow">in</span> <span class="n">Y</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">i_end</span><span class="p">]:</span>
-        <span class="n">limit</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">sent</span><span class="o">==</span><span class="mi">2</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>  <span class="c1">#  the position od the symbol EOS</span>
+        <span class="c1"># Edited below to use integer value of EOS symbol</span>
+        <span class="n">limit</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">sent</span><span class="o">==</span><span class="n">t_joint</span><span class="o">.</span><span class="n">word_index</span><span class="p">[</span><span class="s2">&quot;stopseq&quot;</span><span class="p">])[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>  <span class="c1">#  the position of the symbol EOS</span>
         <span class="n">set_size</span> <span class="o">+=</span> <span class="n">limit</span> <span class="o">+</span> <span class="mi">1</span>
         <span class="n">limit_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">limit</span><span class="p">)</span>
 
@@ -327,12 +492,19 @@ ________________________________________________________________________________
             <span class="c1"># Create a blank row/array for a partial input for our summary model - this is fed into the decoder</span>
             <span class="c1"># It is of the same size as our title</span>
             <span class="n">partial_input</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="n">y_max_len</span><span class="p">))</span>
+            <span class="c1"># Don&#39;t we also need to set partial input [0] to startseq as well? - no that&#39;s taken care of</span>
+            <span class="c1"># by m starting at one but our range below starting at 0</span>
+
             <span class="c1"># Because we are zero padding add words up to m to end - DOES THIS STILL WORK IF WE ZERO PAD</span>
             <span class="c1"># AT THE END? - Yes but we just feed the words with zeros first?</span>
+            <span class="c1"># What happens if we change this to 0:m?! - if we have [1, 2, 3, 4] this will generate</span>
+            <span class="c1"># [0,0,0,1], [0,0,1,2], [0,1, 2, 3]</span>
+            <span class="c1"># Our zero padding is at the end though so our seqs looks like [1,2,3,0,0,0], </span>
+            <span class="c1"># But I know you want the data need the end of the input seq to prevent forgetting</span>
             <span class="n">partial_input</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">m</span><span class="p">:]</span> <span class="o">=</span> <span class="n">Y</span><span class="p">[</span><span class="n">l</span><span class="o">+</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">:</span><span class="n">m</span><span class="p">]</span>
 
             <span class="c1"># This fills in each sample of the training data, i.e. count increments up to set size</span>
-            <span class="n">I_1</span><span class="p">[</span><span class="n">count</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">X_train</span><span class="p">[</span><span class="n">l</span><span class="o">+</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">I_1</span><span class="p">[</span><span class="n">count</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">X</span><span class="p">[</span><span class="n">l</span><span class="o">+</span><span class="n">i</span><span class="p">]</span>
             <span class="n">I_2</span><span class="p">[</span><span class="n">count</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">partial_input</span>
             <span class="n">Y_set</span><span class="p">[</span><span class="n">count</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">one_hot_out</span>
             <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
@@ -351,7 +523,7 @@ ________________________________________________________________________________
 
 <span class="c1"># Function to look for saved weights file</span>
 <span class="k">def</span> <span class="nf">find_checkpoint_file</span><span class="p">(</span><span class="n">folder</span><span class="p">):</span>
-    <span class="n">checkpoint_file</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span> <span class="k">if</span> <span class="s1">&#39;kerascheckpoint&#39;</span> <span class="ow">in</span> <span class="n">f</span><span class="p">]</span>
+    <span class="n">checkpoint_file</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span> <span class="k">if</span> <span class="s1">&#39;v2_kerascheckpoint&#39;</span> <span class="ow">in</span> <span class="n">f</span><span class="p">]</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">checkpoint_file</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">return</span> <span class="p">[]</span>
     <span class="n">modified_time</span> <span class="o">=</span> <span class="p">[</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getmtime</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">checkpoint_file</span><span class="p">]</span>
@@ -385,19 +557,23 @@ ________________________________________________________________________________
 <div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">math</span>
 
 <span class="n">BATCH_SIZE</span> <span class="o">=</span> <span class="mi">32</span> <span class="c1"># Depends on GPU - most values are around this 32-128 </span>
-<span class="n">NB_EPOCH</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">NB_EPOCH</span> <span class="o">=</span> <span class="mi">20</span>
 <span class="c1"># Number of examples to group together in a set - 100 is fast / 1000 is too much on an 8-core i7 laptop</span>
 <span class="c1"># I think 100 is good - 250 takes a time to generate the sets of test data</span>
 <span class="n">NB_SET</span> <span class="o">=</span> <span class="mi">250</span>
+</pre></div>
 
-<span class="n">i_end</span> <span class="o">=</span> <span class="mi">0</span>
+
+<div class="highlight"><pre><span></span><span class="n">i_end</span> <span class="o">=</span> <span class="mi">0</span>
 <span class="n">num_examples</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">X_train</span><span class="p">)</span>
 <span class="n">num_test</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
 <span class="c1"># Initialise history of accuracy</span>
 <span class="n">train_loss</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
 <span class="n">val_loss</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+</pre></div>
 
-<span class="c1"># Continue from loaded epoch number or new epoch if not loaded</span>
+
+<div class="highlight"><pre><span></span><span class="c1"># Continue from loaded epoch number or new epoch if not loaded</span>
 <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k_start</span><span class="p">,</span> <span class="n">NB_EPOCH</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
     <span class="c1"># Shuffling the training data every epoch to avoid local minima</span>
     <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_examples</span><span class="p">)</span>
@@ -435,68 +611,72 @@ ________________________________________________________________________________
         <span class="n">train_loss</span> <span class="o">+=</span> <span class="n">callback</span><span class="o">.</span><span class="n">history</span><span class="p">[</span><span class="s1">&#39;loss&#39;</span><span class="p">]</span>
         <span class="n">val_loss</span> <span class="o">+=</span> <span class="n">callback</span><span class="o">.</span><span class="n">history</span><span class="p">[</span><span class="s1">&#39;val_loss&#39;</span><span class="p">]</span>
         <span class="c1"># Get history and apppend new data to running set here</span>
-    <span class="n">model</span><span class="o">.</span><span class="n">save_weights</span><span class="p">(</span><span class="s1">&#39;kerascheckpoint_epoch_{}.hdf5&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">save_weights</span><span class="p">(</span><span class="s1">&#39;v2_kerascheckpoint_epoch_{}.hdf5&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
 </pre></div>
 
 
-<div class="highlight"><pre><span></span>[INFO] Training model: epoch 2 - 0/20423 samples
-Train on 2463 samples, validate on 658 samples
+<div class="highlight"><pre><span></span>[INFO] Training model: epoch 2 - 0/20505 samples
+Train on 2534 samples, validate on 603 samples
 Epoch 1/1
-2463/2463 [==============================] - 23s 9ms/step - loss: 2.5461 - val_loss: 3.0267
-[INFO] Training model: epoch 2 - 250/20423 samples
-Train on 2552 samples, validate on 607 samples
+2534/2534 [==============================] - 22s 9ms/step - loss: 2.2101 - val_loss: 2.3826
+[INFO] Training model: epoch 2 - 250/20505 samples
+Train on 2464 samples, validate on 677 samples
 Epoch 1/1
-2552/2552 [==============================] - 24s 9ms/step - loss: 2.5839 - val_loss: 2.8048
-[INFO] Training model: epoch 2 - 500/20423 samples
-Train on 2446 samples, validate on 591 samples
+2464/2464 [==============================] - 22s 9ms/step - loss: 2.1098 - val_loss: 2.2632
+[INFO] Training model: epoch 2 - 500/20505 samples
+Train on 2404 samples, validate on 630 samples
 Epoch 1/1
-2446/2446 [==============================] - 24s 10ms/step - loss: 2.4230 - val_loss: 2.7162
+2404/2404 [==============================] - 21s 9ms/step - loss: 2.1046 - val_loss: 2.4288
 
-...YADAYADAYADA...
+....YADAYADAYADA...
 
-[INFO] Training model: epoch 2 - 20000/20423 samples
-Train on 2422 samples, validate on 631 samples
+[INFO] Training model: epoch 20 - 20000/20505 samples
+Train on 2452 samples, validate on 662 samples
 Epoch 1/1
-2422/2422 [==============================] - 25s 10ms/step - loss: 2.4810 - val_loss: 2.8054
-[INFO] Training model: epoch 2 - 20250/20423 samples
-Train on 1810 samples, validate on 472 samples
+2452/2452 [==============================] - 23s 9ms/step - loss: 1.1216 - val_loss: 2.6810
+[INFO] Training model: epoch 20 - 20250/20505 samples
+Train on 2506 samples, validate on 607 samples
 Epoch 1/1
-1810/1810 [==============================] - 19s 10ms/step - loss: 2.4741 - val_loss: 3.0421
+2506/2506 [==============================] - 24s 10ms/step - loss: 1.1131 - val_loss: 2.7156
+[INFO] Training model: epoch 20 - 20500/20505 samples
+Train on 39 samples, validate on 22 samples
+Epoch 1/1
+39/39 [==============================] - 1s 13ms/step - loss: 0.8315 - val_loss: 3.1535
 </pre></div>
 
 
-<p>At the end of a set of training:</p>
-<div class="highlight"><pre><span></span>[INFO] Training model: epoch 2 - 19750/20423 samples
-Train on 2514 samples, validate on 606 samples
-Epoch 1/1
-2514/2514 [==============================] - 26s 10ms/step - loss: 2.4726 - val_loss: 2.8416
-[INFO] Training model: epoch 2 - 20000/20423 samples
-Train on 2422 samples, validate on 631 samples
-Epoch 1/1
-2422/2422 [==============================] - 25s 10ms/step - loss: 2.4810 - val_loss: 2.8054
+<div class="highlight"><pre><span></span>So using the shared embedding appears to provide a small advantage in reducing our loss function. It also lowers the number of parameters for our model, which is a good thing as it reduces over-fitting and training time.
 
-[INFO] Training model: epoch 2 - 20250/20423 samples
-Train on 1810 samples, validate on 472 samples
-Epoch 1/1
-1810/1810 [==============================] - 19s 10ms/step - loss: 2.4741 - val_loss: 3.0421
+
+```python
+# summarize history for accuracy
+plt.plot(train_loss)
+plt.plot(val_loss)
+plt.title(&#39;Model Loss&#39;)
+plt.ylabel(&#39;Loss&#39;)
+plt.xlabel(&#39;Iteration&#39;)
+plt.legend([&#39;train&#39;, &#39;test&#39;], loc=&#39;upper left&#39;)
+plt.show()
 </pre></div>
 
 
-<p>Now we've trained our model we need some code to test it.</p>
+<p><img alt="png" src="https://benhoyle.github.io/images/TG_4A_output_44_0.png"></p>
+<p>Now we've trained our model we need some code to test it. Again, this is pretty much as before but with some tweaks to use the word_index dictionaries to look up our control characters.</p>
 <div class="highlight"><pre><span></span><span class="c1"># Set up dictionary to translate indices to words</span>
 <span class="n">y_dictionary</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
-            <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">char</span><span class="p">)</span> <span class="k">for</span> <span class="n">char</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">t_title</span><span class="o">.</span><span class="n">word_index</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">char</span><span class="p">)</span> <span class="k">for</span> <span class="n">char</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">t_joint</span><span class="o">.</span><span class="n">word_index</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
         <span class="p">)</span>
 
 <span class="n">x_dictionary</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
-            <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">char</span><span class="p">)</span> <span class="k">for</span> <span class="n">char</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">t_claim</span><span class="o">.</span><span class="n">word_index</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">char</span><span class="p">)</span> <span class="k">for</span> <span class="n">char</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">t_joint</span><span class="o">.</span><span class="n">word_index</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
         <span class="p">)</span>
 
 <span class="k">def</span> <span class="nf">seq2text</span><span class="p">(</span><span class="n">seq</span><span class="p">,</span> <span class="n">dictionary</span><span class="p">):</span>
     <span class="n">text</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
     <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">seq</span><span class="p">:</span>
         <span class="n">k</span> <span class="o">=</span> <span class="n">k</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">k</span> <span class="o">&gt;</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">k</span> <span class="o">&lt;</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">dictionary</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="c1"># Adapted to take account of different control integers</span>
+        <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="n">t_joint</span><span class="o">.</span><span class="n">word_index</span><span class="p">[</span><span class="s2">&quot;stopseq&quot;</span><span class="p">],</span> <span class="n">t_joint</span><span class="o">.</span><span class="n">word_index</span><span class="p">[</span><span class="s2">&quot;startseq&quot;</span><span class="p">],</span> <span class="mi">0</span><span class="p">]</span> <span class="ow">and</span> <span class="n">k</span> <span class="o">&lt;</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">dictionary</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
             <span class="n">w</span> <span class="o">=</span> <span class="n">dictionary</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
             <span class="n">text</span> <span class="o">=</span> <span class="n">text</span> <span class="o">+</span> <span class="n">w</span> <span class="o">+</span> <span class="s1">&#39; &#39;</span>
     <span class="k">return</span> <span class="n">text</span>
@@ -508,15 +688,19 @@ Epoch 1/1
     <span class="n">flag</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">prob</span> <span class="o">=</span> <span class="mi">1</span>
     <span class="n">ans_partial</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="n">y_max_len</span><span class="p">))</span>
-    <span class="n">ans_partial</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1">#  the index of the symbol BOS (begin of sentence)</span>
+    <span class="c1"># Add start token integer to end of ans_partial input - initially [0,0,...BOS]</span>
+    <span class="n">ans_partial</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">t_joint</span><span class="o">.</span><span class="n">word_index</span><span class="p">[</span><span class="s2">&quot;startseq&quot;</span><span class="p">]</span>  <span class="c1">#  the index of the symbol BOS (begin of sentence)</span>
     <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">y_max_len</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
         <span class="n">ye</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">([</span><span class="n">input_seq</span><span class="p">,</span> <span class="n">ans_partial</span><span class="p">])</span>
         <span class="n">yel</span> <span class="o">=</span> <span class="n">ye</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]</span>
         <span class="n">p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">yel</span><span class="p">)</span>
         <span class="n">mp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">ye</span><span class="p">)</span>
+        <span class="c1"># It is this line that sets how our training data should be arranged - need to change both</span>
+        <span class="c1"># the line below shifts the existing ans_partial by 1 to the left - [0, 0, ..., BOS, 0]</span>
         <span class="n">ans_partial</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">ans_partial</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">:]</span>
+        <span class="c1"># This then adds the newly decoded word onto the end of ans_partial</span>
         <span class="n">ans_partial</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">mp</span>
-        <span class="k">if</span> <span class="n">mp</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>  <span class="c1">#  the index of the symbol EOS (end of sentence)</span>
+        <span class="k">if</span> <span class="n">mp</span> <span class="o">==</span> <span class="n">t_joint</span><span class="o">.</span><span class="n">word_index</span><span class="p">[</span><span class="s2">&quot;stopseq&quot;</span><span class="p">]:</span>  <span class="c1">#  the index of the symbol EOS (end of sentence)</span>
             <span class="n">flag</span> <span class="o">=</span> <span class="mi">1</span>
         <span class="k">if</span> <span class="n">flag</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>    
             <span class="n">prob</span> <span class="o">=</span> <span class="n">prob</span> <span class="o">*</span> <span class="n">p</span>
@@ -534,54 +718,56 @@ Epoch 1/1
     <span class="n">Y_test_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">Y_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">y_dictionary</span><span class="p">)</span>
     <span class="n">claim_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">X_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">x_dictionary</span><span class="p">)</span>
     <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Sample of claim text: {}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">claim_text</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">200</span><span class="p">]))</span>
-    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Predicted title is: {} (with prob {}). </span><span class="se">\n</span><span class="s2"> Test title is: {} </span><span class="se">\n</span><span class="s2">---</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">prob</span><span class="p">,</span> <span class="n">Y_test_text</span><span class="p">))</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Predicted title is: {} (with prob {}). </span><span class="se">\n</span><span class="s2"> Test title is: {} </span><span class="se">\n</span><span class="s2">---&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">prob</span><span class="p">,</span> <span class="n">Y_test_text</span><span class="p">))</span>
 </pre></div>
 
 
-<div class="highlight"><pre><span></span>Sample of claim text: live dual validated independently verified dynamic match audit system comprising first device for transmitting an element effort event data, which data details an effort of an element on an event, and
+<div class="highlight"><pre><span></span>Sample of claim text: 1 a method of memory page de in a computer system comprising a plurality of virtual machine partitions managed by a hypervisor wherein each virtual machine is assigned a different dedicated memory par
 
-Predicted title is: system and method for generating a plurality of  (with prob 2.988668487895419e-05). 
- Test title is: match system and event data recorder method thereof  
+Predicted title is: virtual machine using virtual machine i o port  (with prob 0.00024153314510963288). 
+ Test title is: memory page de in a computer system that includes a plurality of virtual machines  
 ---
+Sample of claim text: 1 a method for operating a server comprising a processor for automatically generating an end user interface for working with the data within a relational database defined within a relational whose dat
 
-Sample of claim text: method comprising facilitating receipt of two or more images of scene, two or more images being associated with different capture parameters determining intensity at corresponding pixel locations of a
-
-Predicted title is: image processing apparatus and image processing method apparatus and computer readable medium  (with prob 0.007207380954881892). 
- Test title is: method apparatus and computer program product for generating images of scenes having high dynamic range  
+Predicted title is: method and system for managing database objects in a database  (with prob 0.0003222082082124349). 
+ Test title is: system and method for generating automatic user interface for complex or large databases  
 ---
+Sample of claim text: 1 a method of processing user input in a three dimensional coordinate system comprising receiving a user input of an origin reset for the three dimensional coordinate system responsive to receiving th
 
-Sample of claim text: an information terminal for reducing touch point reading errors and releasing security lock of information terminal, comprising touch panel that displays plurality of touch points coordinate determini
-
-Predicted title is: touch panel and method of controlling the same  (with prob 0.0002631053677347134). 
- Test title is: information terminal  
+Predicted title is: user interface based on user interaction surfaces type sources therein  (with prob 0.0009777329678170813). 
+ Test title is: three dimensional user input  
 ---
+Sample of claim text: 1 a digital logic circuit comprising a programmable logic device configured to include a pipeline that comprises a matching stage and a downstream extension stage the matching stage being configured t
 
-Sample of claim text: method comprising receiving message having coded therein information identifying desired transport mechanism for request and/or response, received message including portion and portion processing, by
-
-Predicted title is: method and system for providing a network  (with prob 3.861037278558291e-05). 
- Test title is: request and response via in a service oriented pipeline architecture for a request response message exchange pattern  
+Predicted title is: system and method for performing expression based on instruction time  (with prob 9.03439755326292e-05). 
+ Test title is: method and apparatus for performing similarity searching  
 ---
+Sample of claim text: 1 a method for deriving information from a network that is used to model web traffic data the method comprising receiving by a web traffic analysis server web traffic data that is collected by a websi
 
-Sample of claim text: an apparatus, comprising block processing pipeline implemented in video encoder circuit and configured to process blocks of pixels from video frames wherein block processing pipeline comprises block i
-
-Predicted title is: method and apparatus for generating a three dimensional image  (with prob 7.063415872216406e-07). 
- Test title is: encoding blocks in video frames containing text using of  
+Predicted title is: method and system for determining the presence of a communication network information and method of the same  (with prob 0.00038204782414073336). 
+ Test title is: knowledge discovery from networks  
 ---
 </pre></div>
 
 
 <h4>Comments on Results</h4>
-<p>The predicted titles seem to be well-formatted and make sense. The problem is they seem to be unrelated to the actual title!</p>
-<p>What I think is going on is the second LSTM is over-fitting on the training data. Hence, what you have is a system that memorises the training titles, then picks a memorised training title based on the output of the first LSTM. </p>
-<p>It also appears that the link between the first and second LSTMs is weak - the first encoding or "context vector" does not appear to be heavily influencing the title generation. The prediction of the dense layer seems to be mainly based on the second LSTM. Hence, the dense layer and second LSTM in tandem are over-fitting.</p>
-<p>This is backed up by the fact that when we do not shuffle the training data we have rapid convergence to a low loss. This is indicative of over-fitting. It is predicted that by not shuffling we should get rapid convergence but a maintained high validation loss.</p>
+<p>From this training there now appears more of a link between the claim text and the predicted title. The model seems to be learning a few patterns such as - "method and system for creating a [] method and system method". </p>
+<p>This result seems close:</p>
+<div class="highlight"><pre><span></span>    Sample of claim text: 1 an apparatus comprising a capacitive sense array and a processing device wherein the capacitive sense array is configured to detect a presence of a touch object or a stylus wherein the capacitive se
+
+    Predicted title is: method and apparatus for displaying a touch screen method and apparatus for the same  (with prob 1.9565373226245597e-05). 
+    Test title is: capacitive sense array for detecting touch objects and an active stylus  
+</pre></div>
+
+
+<p>Training still appears unstable. Some of this may be due to the shuffling for regularisation.</p>
+<p>The results appear an improvement though on the previous model. It is worth keeping this feature.</p>
 <h4>Options for Further Investigation</h4>
-<p>We can try adding in shared word embeddings based on Glove encodings (as per the second Ludwig model). The post <a href="https://machinelearningmastery.com/use-word-embedding-layers-deep-learning-keras/">here</a> shows how we convert the text file of Glove encodings into a matrix given a vocabulary from our data.</p>
-<p>We can try adding the adversarial discriminator.</p>
+<p>It may be worth experimenting with different training parameters and not shuffling the data. Lowering the batch size might reduce some of the loss variance.</p>
+<p>Also adding some regularisation may help prevent overfitting. Maybe by adding some dropout (0.2?) to the LSTMs and by adding an L2 regulariser to the dense layer.</p>
 <hr>
-<h3>Chollet/Brownlee Model</h3>
-<p>This is more of a true sequence-to-sequence model, and is thus slightly more involved.</p>
-<p>Our model consists of two portions - a portion for training and a portion for inference (i.e. for actually predicting new titles).</p>
+<h2>Chollet/Brownlee Model</h2>
+<p>Adapting this model is also fairly straightforward. We define the shared embedding layer as before, initialised with the GloVe weights, and use in place of our separate embedding layers from before.</p>
 <div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">random</span> <span class="kn">import</span> <span class="n">randint</span>
 <span class="kn">from</span> <span class="nn">numpy</span> <span class="kn">import</span> <span class="n">array</span>
 <span class="kn">from</span> <span class="nn">numpy</span> <span class="kn">import</span> <span class="n">argmax</span>
@@ -612,18 +798,23 @@ Predicted title is: method and apparatus for generating a three dimensional imag
     <span class="k">return</span> <span class="n">encoder_input_data</span><span class="p">,</span> <span class="n">decoder_input_data</span><span class="p">,</span> <span class="n">decoder_target_data</span>
 
 <span class="c1"># returns train, inference_encoder and inference_decoder models</span>
-<span class="k">def</span> <span class="nf">define_models</span><span class="p">(</span><span class="n">num_encoder_tokens</span><span class="p">,</span> <span class="n">num_decoder_tokens</span><span class="p">,</span> <span class="n">latent_dim</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">define_models</span><span class="p">(</span><span class="n">vocab_size</span><span class="p">,</span> <span class="n">latent_dim</span><span class="p">,</span> <span class="n">embedding_matrix</span><span class="p">):</span>
     <span class="c1"># define training encoder</span>
     <span class="c1"># Define an input sequence and process it.</span>
     <span class="n">encoder_inputs</span> <span class="o">=</span> <span class="n">Input</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">None</span><span class="p">,))</span>
-    <span class="n">encoder_embedding</span> <span class="o">=</span> <span class="n">Embedding</span><span class="p">(</span><span class="n">num_encoder_tokens</span><span class="p">,</span> <span class="n">latent_dim</span><span class="p">)(</span><span class="n">encoder_inputs</span><span class="p">)</span>
+    <span class="n">Shared_Embedding</span> <span class="o">=</span> <span class="n">Embedding</span><span class="p">(</span>
+        <span class="n">output_dim</span><span class="o">=</span><span class="n">latent_dim</span><span class="p">,</span> 
+        <span class="n">input_dim</span><span class="o">=</span><span class="n">vocab_size</span><span class="p">,</span> 
+        <span class="n">weights</span><span class="o">=</span><span class="p">[</span><span class="n">embedding_matrix</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">encoder_embedding</span> <span class="o">=</span> <span class="n">Shared_Embedding</span><span class="p">(</span><span class="n">encoder_inputs</span><span class="p">)</span>
     <span class="n">encoder_outputs</span><span class="p">,</span> <span class="n">state_h</span><span class="p">,</span> <span class="n">state_c</span> <span class="o">=</span> <span class="n">LSTM</span><span class="p">(</span><span class="n">latent_dim</span><span class="p">,</span> <span class="n">return_state</span><span class="o">=</span><span class="bp">True</span><span class="p">)(</span><span class="n">encoder_embedding</span><span class="p">)</span>
     <span class="n">encoder_states</span> <span class="o">=</span> <span class="p">[</span><span class="n">state_h</span><span class="p">,</span> <span class="n">state_c</span><span class="p">]</span>
 
     <span class="c1"># Set up the decoder, using `encoder_states` as initial state.</span>
     <span class="n">decoder_inputs</span> <span class="o">=</span> <span class="n">Input</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">None</span><span class="p">,))</span>
     <span class="c1"># Possibly share the embedding below</span>
-    <span class="n">decoder_embedding</span> <span class="o">=</span> <span class="n">Embedding</span><span class="p">(</span><span class="n">num_decoder_tokens</span><span class="p">,</span> <span class="n">latent_dim</span><span class="p">)(</span><span class="n">decoder_inputs</span><span class="p">)</span>
+    <span class="n">decoder_embedding</span> <span class="o">=</span> <span class="n">Shared_Embedding</span><span class="p">(</span><span class="n">decoder_inputs</span><span class="p">)</span>
     <span class="n">decoder_lstm</span> <span class="o">=</span> <span class="n">LSTM</span><span class="p">(</span><span class="n">latent_dim</span><span class="p">,</span> <span class="n">return_sequences</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">return_state</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
     <span class="n">decoder_outputs</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">decoder_lstm</span><span class="p">(</span><span class="n">decoder_embedding</span><span class="p">,</span> <span class="n">initial_state</span><span class="o">=</span><span class="n">encoder_states</span><span class="p">)</span>
     <span class="n">decoder_dense</span> <span class="o">=</span> <span class="n">Dense</span><span class="p">(</span><span class="n">num_decoder_tokens</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="s1">&#39;softmax&#39;</span><span class="p">)</span>
@@ -678,14 +869,65 @@ Predicted title is: method and apparatus for generating a three dimensional imag
     <span class="k">return</span> <span class="n">model</span><span class="p">,</span> <span class="n">train_loss</span><span class="p">,</span> <span class="n">val_loss</span>
 
 <span class="c1"># define model</span>
-<span class="n">train</span><span class="p">,</span> <span class="n">infenc</span><span class="p">,</span> <span class="n">infdec</span> <span class="o">=</span> <span class="n">define_models</span><span class="p">(</span><span class="n">num_encoder_tokens</span><span class="p">,</span> <span class="n">num_decoder_tokens</span><span class="p">,</span> <span class="mi">128</span><span class="p">)</span>
+<span class="n">train</span><span class="p">,</span> <span class="n">infenc</span><span class="p">,</span> <span class="n">infdec</span> <span class="o">=</span> <span class="n">define_models</span><span class="p">(</span><span class="n">vocab_size</span><span class="p">,</span> <span class="n">word_embedding_size</span><span class="p">,</span> <span class="n">embedding_matrix</span><span class="p">)</span>
 <span class="n">train</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">optimizer</span><span class="o">=</span><span class="s1">&#39;adam&#39;</span><span class="p">,</span> <span class="n">loss</span><span class="o">=</span><span class="s1">&#39;categorical_crossentropy&#39;</span><span class="p">,</span> <span class="n">metrics</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;acc&#39;</span><span class="p">])</span>
 </pre></div>
 
 
+<div class="highlight"><pre><span></span><span class="n">train</span><span class="o">.</span><span class="n">summary</span><span class="p">()</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>__________________________________________________________________________________________________
+Layer (type)                    Output Shape         Param #     Connected to                     
+==================================================================================================
+input_14 (InputLayer)           (None, None)         0                                            
+__________________________________________________________________________________________________
+input_13 (InputLayer)           (None, None)         0                                            
+__________________________________________________________________________________________________
+embedding_5 (Embedding)         (None, None, 100)    250000      input_13[0][0]                   
+                                                                 input_14[0][0]                   
+__________________________________________________________________________________________________
+lstm_9 (LSTM)                   [(None, 100), (None, 80400       embedding_5[0][0]                
+__________________________________________________________________________________________________
+lstm_10 (LSTM)                  [(None, None, 100),  80400       embedding_5[1][0]                
+                                                                 lstm_9[0][1]                     
+                                                                 lstm_9[0][2]                     
+__________________________________________________________________________________________________
+dense_5 (Dense)                 (None, None, 2500)   252500      lstm_10[0][0]                    
+==================================================================================================
+Total params: 663,300
+Trainable params: 663,300
+Non-trainable params: 0
+__________________________________________________________________________________________________
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">train_loss</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">val_loss</span> <span class="o">=</span> <span class="p">[]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">Y_test</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>array([ 34,  83,  87,   3, 644,  35,   0,   0,   0,   0,   0,   0,   0,
+         0,   0,   0,   0,   0,   0,   0,   0,   0], dtype=int32)
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">t_joint</span><span class="o">.</span><span class="n">word_index</span><span class="p">[</span><span class="s2">&quot;startseq&quot;</span><span class="p">],</span> <span class="n">t_joint</span><span class="o">.</span><span class="n">word_index</span><span class="p">[</span><span class="s2">&quot;stopseq&quot;</span><span class="p">]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>(34, 35)
+</pre></div>
+
+
 <div class="highlight"><pre><span></span><span class="c1"># setup variables</span>
-<span class="n">epochs</span> <span class="o">=</span> <span class="mi">10</span>
-<span class="n">batch_size</span> <span class="o">=</span> <span class="mi">64</span>
+<span class="n">epochs</span> <span class="o">=</span> <span class="mi">20</span>
+<span class="n">batch_size</span> <span class="o">=</span> <span class="mi">32</span>
 <span class="n">set_size</span> <span class="o">=</span> <span class="mi">5000</span>
 
 <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">epochs</span><span class="p">):</span>
@@ -693,62 +935,54 @@ Predicted title is: method and apparatus for generating a three dimensional imag
     <span class="n">train</span><span class="p">,</span> <span class="n">tl</span><span class="p">,</span> <span class="n">vl</span> <span class="o">=</span> <span class="n">train_model</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">Y_train</span><span class="p">,</span> <span class="n">X_test</span><span class="p">,</span> <span class="n">Y_test</span><span class="p">,</span> <span class="n">train</span><span class="p">,</span> <span class="n">set_size</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">num_decoder_tokens</span><span class="p">)</span>
     <span class="n">train_loss</span> <span class="o">+=</span> <span class="n">tl</span>
     <span class="n">val_loss</span> <span class="o">+=</span> <span class="n">vl</span>
-    <span class="n">model</span><span class="o">.</span><span class="n">save_weights</span><span class="p">(</span><span class="s2">&quot;chollet_weights.hdf5&quot;</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">save_weights</span><span class="p">(</span><span class="s2">&quot;chollet_weights_v2.hdf5&quot;</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
 </pre></div>
 
 
 <div class="highlight"><pre><span></span>--------
  Epoch -  0
-[INFO] Training model: 0/20423 samples
+[INFO] Training model: 0/20505 samples
 Train on 5000 samples, validate on 1250 samples
 Epoch 1/1
-5000/5000 [==============================] - 82s 16ms/step - loss: 1.3725 - acc: 0.7448 - val_loss: 1.7861 - val_acc: 0.7027
-[INFO] Training model: 5000/20423 samples
+5000/5000 [==============================] - 77s 15ms/step - loss: 1.9163 - acc: 0.6911 - val_loss: 1.8874 - val_acc: 0.6925
+[INFO] Training model: 5000/20505 samples
 Train on 5000 samples, validate on 1250 samples
 Epoch 1/1
-5000/5000 [==============================] - 84s 17ms/step - loss: 1.3737 - acc: 0.7435 - val_loss: 1.7589 - val_acc: 0.7081
-[INFO] Training model: 10000/20423 samples
+5000/5000 [==============================] - 85s 17ms/step - loss: 1.8805 - acc: 0.6966 - val_loss: 1.9176 - val_acc: 0.6897
+[INFO] Training model: 10000/20505 samples
 Train on 5000 samples, validate on 1250 samples
 Epoch 1/1
-5000/5000 [==============================] - 87s 17ms/step - loss: 1.3650 - acc: 0.7461 - val_loss: 1.7568 - val_acc: 0.7059
-[INFO] Training model: 15000/20423 samples
-Train on 5000 samples, validate on 1250 samples
-Epoch 1/1
-5000/5000 [==============================] - 87s 17ms/step - loss: 1.3451 - acc: 0.7480 - val_loss: 1.7507 - val_acc: 0.7123
-[INFO] Training model: 20000/20423 samples
-Train on 423 samples, validate on 106 samples
-Epoch 1/1
-423/423 [==============================] - 7s 16ms/step - loss: 1.3241 - acc: 0.7517 - val_loss: 1.8438 - val_acc: 0.7028
-
+5000/5000 [==============================] - 85s 17ms/step - loss: 1.8370 - acc: 0.7020 - val_loss: 1.8404 - val_acc: 0.7031
 --------
 
-...YADAYADAYADA....
+......etcetc....
 
 --------
- Epoch -  9
-[INFO] Training model: 0/20423 samples
+ Epoch -  19
+[INFO] Training model: 0/20505 samples
 Train on 5000 samples, validate on 1250 samples
 Epoch 1/1
-5000/5000 [==============================] - 90s 18ms/step - loss: 1.2092 - acc: 0.7635 - val_loss: 1.8768 - val_acc: 0.6985
-[INFO] Training model: 5000/20423 samples
+5000/5000 [==============================] - 118s 24ms/step - loss: 1.2376 - acc: 0.7554 - val_loss: 1.5488 - val_acc: 0.7297
+[INFO] Training model: 5000/20505 samples
 Train on 5000 samples, validate on 1250 samples
 Epoch 1/1
-5000/5000 [==============================] - 88s 18ms/step - loss: 1.2145 - acc: 0.7622 - val_loss: 1.8442 - val_acc: 0.7035
-[INFO] Training model: 10000/20423 samples
+5000/5000 [==============================] - 116s 23ms/step - loss: 1.2313 - acc: 0.7557 - val_loss: 1.6187 - val_acc: 0.7252
+[INFO] Training model: 10000/20505 samples
 Train on 5000 samples, validate on 1250 samples
 Epoch 1/1
-5000/5000 [==============================] - 89s 18ms/step - loss: 1.2038 - acc: 0.7641 - val_loss: 1.8421 - val_acc: 0.7036
-[INFO] Training model: 15000/20423 samples
+5000/5000 [==============================] - 116s 23ms/step - loss: 1.2158 - acc: 0.7580 - val_loss: 1.5834 - val_acc: 0.7288
+[INFO] Training model: 15000/20505 samples
 Train on 5000 samples, validate on 1250 samples
 Epoch 1/1
-5000/5000 [==============================] - 89s 18ms/step - loss: 1.1822 - acc: 0.7671 - val_loss: 1.8415 - val_acc: 0.7073
-[INFO] Training model: 20000/20423 samples
-Train on 423 samples, validate on 106 samples
+5000/5000 [==============================] - 118s 24ms/step - loss: 1.2380 - acc: 0.7529 - val_loss: 1.5333 - val_acc: 0.7379
+[INFO] Training model: 20000/20505 samples
+Train on 505 samples, validate on 127 samples
 Epoch 1/1
-423/423 [==============================] - 8s 19ms/step - loss: 1.1642 - acc: 0.7720 - val_loss: 1.9424 - val_acc: 0.6990
+505/505 [==============================] - 13s 25ms/step - loss: 1.2426 - acc: 0.7504 - val_loss: 1.7648 - val_acc: 0.6979
 </pre></div>
 
 
+<p>Again this seems to offer an improvement by lowering our loss.</p>
 <div class="highlight"><pre><span></span><span class="c1"># summarize history for accuracy</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">train_loss</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">val_loss</span><span class="p">)</span>
@@ -760,111 +994,8 @@ Epoch 1/1
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/TG_3_output_31_0.png"></p>
-<p>So here we want to stop after around 50 iterations - this is where our training and test loss diverge and marks where over-fitting begins.</p>
-<p>We then need the inference code to allow prediction and decoding.</p>
-<p>The general pattern is as follows:</p>
-<ul>
-<li>Predict the state with infenc using an input X vector.</li>
-<li>Create an initial target vector - is this 0s with first entry the startseq token 1? In the one-hot case, it's a one-hot encoding of one character - would our equivalent just be <code>array([1])</code></li>
-<li>while stop condition is false, where stop condition = len=max_y_len or token=2=stopseq<ul>
-<li>use infdec to predict yhat and return the state of the decoder h and c </li>
-<li>remember the yhat </li>
-<li>set yhat as the next target sequence and pass generated state</li>
-</ul>
-</li>
-</ul>
-<p>I.e. I think we can similar code to Brownlee's or Chollet's model.</p>
-<div class="highlight"><pre><span></span><span class="n">I_1_train</span><span class="p">,</span> <span class="n">I_2_train</span><span class="p">,</span> <span class="n">Y_set_train</span> <span class="o">=</span> <span class="n">get_dataset</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">Y_train</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">num_decoder_tokens</span><span class="p">)</span>
-<span class="n">I_1_test</span><span class="p">,</span> <span class="n">I_2_test</span><span class="p">,</span> <span class="n">Y_set_test</span> <span class="o">=</span> <span class="n">get_dataset</span><span class="p">(</span><span class="n">X_test</span><span class="p">,</span> <span class="n">Y_test</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">num_decoder_tokens</span><span class="p">)</span>
-</pre></div>
-
-
-<div class="highlight"><pre><span></span><span class="k">print</span><span class="p">(</span><span class="n">I_1_train</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">I_2_train</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">Y_set_train</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-<span class="k">print</span><span class="p">(</span><span class="n">I_1_test</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">I_2_test</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">Y_set_test</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-</pre></div>
-
-
-<div class="highlight"><pre><span></span>(0, 300) (0, 22) (0, 22, 2500)
-(0, 300) (0, 22) (0, 22, 2500)
-</pre></div>
-
-
-<div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">predict_sequence</span><span class="p">(</span><span class="n">infenc</span><span class="p">,</span> <span class="n">infdec</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">decoder_seq_length</span><span class="p">):</span>
-    <span class="c1"># encode</span>
-    <span class="n">state</span> <span class="o">=</span> <span class="n">infenc</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
-    <span class="c1"># start of sequence input</span>
-    <span class="n">target_seq</span> <span class="o">=</span> <span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">])</span>
-    <span class="c1"># collect predictions</span>
-    <span class="n">output</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
-    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">decoder_seq_length</span><span class="p">):</span>
-        <span class="c1"># predict next char</span>
-        <span class="n">yhat</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">infdec</span><span class="o">.</span><span class="n">predict</span><span class="p">([</span><span class="n">target_seq</span><span class="p">]</span> <span class="o">+</span> <span class="n">state</span><span class="p">)</span>
-        <span class="c1"># update state</span>
-        <span class="n">state</span> <span class="o">=</span> <span class="p">[</span><span class="n">h</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
-        <span class="c1"># update target sequence - this needs to be the argmax</span>
-        <span class="n">next_int</span> <span class="o">=</span> <span class="n">argmax</span><span class="p">(</span><span class="n">yhat</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:])</span>
-        <span class="n">output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">next_int</span><span class="p">)</span>
-        <span class="c1"># It seems like we throw a lot of information away here - can we build in the probabilities?</span>
-        <span class="n">target_seq</span> <span class="o">=</span> <span class="n">array</span><span class="p">([</span><span class="n">next_int</span><span class="p">])</span>
-        <span class="c1"># Check for stopping character</span>
-        <span class="k">if</span> <span class="n">next_int</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-            <span class="k">break</span>
-    <span class="k">return</span> <span class="n">output</span>
-</pre></div>
-
-
-<div class="highlight"><pre><span></span><span class="c1"># Testing</span>
-<span class="n">num_test_titles</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
-<span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_test_titles</span><span class="p">)</span>
-<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-<span class="n">X_test</span> <span class="o">=</span> <span class="n">X_test</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
-<span class="n">Y_test</span> <span class="o">=</span> <span class="n">Y_test</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
-<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span>
-    <span class="n">pred_seq</span> <span class="o">=</span> <span class="n">predict_sequence</span><span class="p">(</span><span class="n">infenc</span><span class="p">,</span> <span class="n">infdec</span><span class="p">,</span> <span class="n">X_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">decoder_seq_length</span><span class="p">)</span>
-    <span class="n">predicted_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">pred_seq</span><span class="p">,</span> <span class="n">y_dictionary</span><span class="p">)</span>
-    <span class="n">Y_test_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">Y_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">y_dictionary</span><span class="p">)</span>
-    <span class="n">claim_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">X_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">x_dictionary</span><span class="p">)</span>
-    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Sample of claim text: {}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">claim_text</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">200</span><span class="p">]))</span>
-    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Predicted title is: {}. </span><span class="se">\n</span><span class="s2"> Test title is: {} </span><span class="se">\n</span><span class="s2">---</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">predicted_text</span><span class="p">,</span> <span class="n">Y_test_text</span><span class="p">))</span>
-</pre></div>
-
-
-<div class="highlight"><pre><span></span>Sample of claim text: method for authenticating an identity of cardholder in financial transaction initiated by cardholder with merchant via first communication medium, said method comprising receiving purchase authenticat
-
-Predicted title is: a more more dimensional more more more more more more more dimensional dimensional more more more more more dimensional dimensional more more . 
- Test title is: methods and systems for authenticating an identity of a in a financial transaction  
----
-
-Sample of claim text: an array substrate including display area and peripheral area, wherein display area includes plurality of thin film transistors provided on base substrate, first transparent electrodes electrically co
-
-Predicted title is: a more more dimensional more more more more more more more dimensional dimensional more more more more more dimensional dimensional more more . 
- Test title is: array substrate and manufacturing method thereof touch display device  
----
-
-Sample of claim text: method for identifying conditional actions in business process comprising determining plurality of pairs of text fragments that respectively include text fragments that are similar according to pre-de
-
-Predicted title is: a more more dimensional more more more more more more more dimensional dimensional more more more more more dimensional dimensional more more . 
- Test title is: identifying and conditional actions in business processes  
----
-
-Sample of claim text: method of processing merchandise return comprising receiving request to merchandise return made by consumer at point of return determining with one or more computer processors whether to return made b
-
-Predicted title is: a more more dimensional more more more more more more more dimensional dimensional more more more more more dimensional dimensional more more . 
- Test title is: systems and methods for data collection at a point of return  
----
-
-Sample of claim text: method, comprising detecting, on touch screen of an information device, user input determining, using processor, that user input occurs within predetermined edge region of touch screen adjusting, usin
-
-Predicted title is: a more more dimensional more more more more more more more dimensional dimensional more more more more more dimensional dimensional more more . 
- Test title is: detecting and filtering edge touch inputs  
----
-</pre></div>
-
-
-<p>We have a lower loss than the Ludwig model but our output is the same for all predicted titles: a seemingly random set of repetitive phrases.</p>
-<p>I have seen this form of behaviour before. One method of avoiding it was to play with the temperature of the sampling. This is explained <a href="https://stats.stackexchange.com/questions/255223/the-effect-of-temperature-in-temperature-sampling">here</a> as set out below.</p>
-<p><img alt="temperature.png" src="https://benhoyle.github.io/images/temperature.png"></p>
+<p><img alt="png" src="https://benhoyle.github.io/images/TG_4A_output_58_0.png"></p>
+<p>Our training and model loss end up lower and are slowly decreasing. This again suggests that the shared embedding is an improvement. We still look to plateau on our training data after 40-50 iterations (~9 or 10 epochs). From about 40 iterations we start overfitting on our training data.</p>
 <div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="n">preds</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
     <span class="c1"># helper function to sample an index from a probability array</span>
     <span class="n">preds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">preds</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;float64&#39;</span><span class="p">)</span>
@@ -876,35 +1007,12 @@ Predicted title is: a more more dimensional more more more more more more more d
 </pre></div>
 
 
-<div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">infenc</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
-<span class="c1"># start of sequence input</span>
-<span class="n">target_seq</span> <span class="o">=</span> <span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">])</span>
-<span class="c1"># collect predictions</span>
-<span class="n">output</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
-<span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">decoder_seq_length</span><span class="p">):</span>
-    <span class="c1"># predict next char</span>
-    <span class="n">yhat</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">infdec</span><span class="o">.</span><span class="n">predict</span><span class="p">([</span><span class="n">target_seq</span><span class="p">]</span> <span class="o">+</span> <span class="n">state</span><span class="p">)</span>
-    <span class="c1"># update state</span>
-    <span class="n">state</span> <span class="o">=</span> <span class="p">[</span><span class="n">h</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
-    <span class="c1"># update target sequence - this needs to be the argmax</span>
-    <span class="n">next_int</span> <span class="o">=</span> <span class="n">sample</span><span class="p">(</span><span class="n">yhat</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:])</span>
-    <span class="n">output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">next_int</span><span class="p">)</span>
-    <span class="c1"># It seems like we throw a lot of information away here - can we build in the probabilities?</span>
-    <span class="n">target_seq</span> <span class="o">=</span> <span class="n">array</span><span class="p">([</span><span class="n">next_int</span><span class="p">])</span>
-    <span class="c1"># Check for stopping character</span>
-<span class="k">print</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
-</pre></div>
-
-
-<div class="highlight"><pre><span></span>[1226, 1415, 2180, 1370, 873, 1059, 18, 414, 364, 1926, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-</pre></div>
-
-
+<p>Again we adapt this to use the word_index entries.</p>
 <div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">predict_sequence</span><span class="p">(</span><span class="n">infenc</span><span class="p">,</span> <span class="n">infdec</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">decoder_seq_length</span><span class="p">,</span> <span class="n">temp</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
     <span class="c1"># encode</span>
     <span class="n">state</span> <span class="o">=</span> <span class="n">infenc</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
     <span class="c1"># start of sequence input</span>
-    <span class="n">target_seq</span> <span class="o">=</span> <span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">target_seq</span> <span class="o">=</span> <span class="n">array</span><span class="p">([</span><span class="n">t_joint</span><span class="o">.</span><span class="n">word_index</span><span class="p">[</span><span class="s2">&quot;startseq&quot;</span><span class="p">]])</span>
     <span class="c1"># collect predictions</span>
     <span class="n">output</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">decoder_seq_length</span><span class="p">):</span>
@@ -918,7 +1026,7 @@ Predicted title is: a more more dimensional more more more more more more more d
         <span class="c1"># It seems like we throw a lot of information away here - can we build in the probabilities?</span>
         <span class="n">target_seq</span> <span class="o">=</span> <span class="n">array</span><span class="p">([</span><span class="n">next_int</span><span class="p">])</span>
         <span class="c1"># Check for stopping character</span>
-        <span class="k">if</span> <span class="n">next_int</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">next_int</span> <span class="o">==</span> <span class="n">t_joint</span><span class="o">.</span><span class="n">word_index</span><span class="p">[</span><span class="s2">&quot;stopseq&quot;</span><span class="p">]:</span>
             <span class="k">break</span>
     <span class="k">return</span> <span class="n">output</span>
 </pre></div>
@@ -931,7 +1039,7 @@ Predicted title is: a more more dimensional more more more more more more more d
 <span class="n">X_test</span> <span class="o">=</span> <span class="n">X_test</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
 <span class="n">Y_test</span> <span class="o">=</span> <span class="n">Y_test</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
 <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span>
-    <span class="n">pred_seq</span> <span class="o">=</span> <span class="n">predict_sequence</span><span class="p">(</span><span class="n">infenc</span><span class="p">,</span> <span class="n">infdec</span><span class="p">,</span> <span class="n">X_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">decoder_seq_length</span><span class="p">)</span>
+    <span class="n">pred_seq</span> <span class="o">=</span> <span class="n">predict_sequence</span><span class="p">(</span><span class="n">infenc</span><span class="p">,</span> <span class="n">infdec</span><span class="p">,</span> <span class="n">X_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">decoder_seq_length</span><span class="p">,</span> <span class="n">temp</span><span class="o">=</span><span class="mf">0.8</span><span class="p">)</span>
     <span class="n">predicted_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">pred_seq</span><span class="p">,</span> <span class="n">y_dictionary</span><span class="p">)</span>
     <span class="n">Y_test_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">Y_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">y_dictionary</span><span class="p">)</span>
     <span class="n">claim_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">X_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">x_dictionary</span><span class="p">)</span>
@@ -940,264 +1048,60 @@ Predicted title is: a more more dimensional more more more more more more more d
 </pre></div>
 
 
-<div class="highlight"><pre><span></span>Sample of claim text: character string recognition method for recognizing character string comprising steps of imaging character string on medium to obtain image data first step in which first projection data of image data
+<div class="highlight"><pre><span></span>Sample of claim text: 1 an audio playback system comprising a playback engine for playing audio data according to control information playback of the audio data a snapshot module comprising a memory for saving a plurality
 
-Predicted title is: fidelity awareness screening using regions filtering said program . 
- Test title is: character string recognition method and device  
+Predicted title is: party exclusive load sharing an iteration addition in a multi purpose computer . 
+ Test title is: music and audio playback system  
 ---
 
-Sample of claim text: device for selectively modifying transmission performance of frame data having data size and preset transmission clock rate, frame data being transmitted through transmission interface toward an image
+Sample of claim text: 1 a computer implemented method comprising receiving by a computing system a translation for content from a of the translation the content being associated with an item in an electronic providing the
 
-Predicted title is: dependent accessory candidate lock assignment algorithms initiated devices using manufacture . 
- Test title is: modification device and method for selectively modifying transmission performance of image frame data  
+Predicted title is: necessary internal hybrid point to semiconductor apparatus . 
+ Test title is: techniques for translating content  
 ---
 
-Sample of claim text: an apparatus for use as switch, comprising ring tag including ring element with an rfid circuit, ring tag attached to rotatable on rotation axis to place ring tag into first position, wherein ring tag
+Sample of claim text: 1 a display device for installation in a comprising a detector that detects a touch operation an image associated with the display device that acquires at least two of a navigation image containing ma
 
-Predicted title is: refresh similarity coverage serving work hosted secure end diagnosis malicious cryptographic attribute claims tissue controller therefor . 
- Test title is: switch using radio frequency identification  
+Predicted title is: placed microprocessor network sections size . 
+ Test title is: display device display program and display method  
 ---
 
-Sample of claim text: computer-implemented method, comprising receiving sensor data from user device, sensor data comprising image data depicting at least portion of user of user device, image data provided by an image cap
+Sample of claim text: 1 a method of using a computer to determine a of an object in a system comprising receiving from clients in the system the identifying an object detected at the clients determining a of the object on
 
-Predicted title is: tuning modified pertaining searching detecting scanner response . 
- Test title is: employing device sensor data to determine user characteristics  
+Predicted title is: stock coverage floating strings monitored applications . 
+ Test title is: using confidence about user in a system  
 ---
 
-Sample of claim text: method of prioritizing feed items based on rules, method comprising receiving input data, wherein input data comprises data or feed metrics receiving user input to provide one or more rules to feed it
+Sample of claim text: 1 a system comprising a processor an audio content registry component executable by the processor to register an audio content item wherein the audio content item has an insertion point at which to an
 
-Predicted title is: timeline abstraction matrix tests combining marks . 
- Test title is: rule based prioritization of social data  
----
-</pre></div>
-
-
-<div class="highlight"><pre><span></span><span class="c1"># Testing</span>
-<span class="n">num_test_titles</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
-<span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_test_titles</span><span class="p">)</span>
-<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-<span class="n">X_test</span> <span class="o">=</span> <span class="n">X_test</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
-<span class="n">Y_test</span> <span class="o">=</span> <span class="n">Y_test</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
-<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span>
-    <span class="n">pred_seq</span> <span class="o">=</span> <span class="n">predict_sequence</span><span class="p">(</span><span class="n">infenc</span><span class="p">,</span> <span class="n">infdec</span><span class="p">,</span> <span class="n">X_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">decoder_seq_length</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)</span>
-    <span class="n">predicted_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">pred_seq</span><span class="p">,</span> <span class="n">y_dictionary</span><span class="p">)</span>
-    <span class="n">Y_test_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">Y_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">y_dictionary</span><span class="p">)</span>
-    <span class="n">claim_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">X_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">x_dictionary</span><span class="p">)</span>
-    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Sample of claim text: {}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">claim_text</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">200</span><span class="p">]))</span>
-    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Predicted title is: {}. </span><span class="se">\n</span><span class="s2"> Test title is: {} </span><span class="se">\n</span><span class="s2">---</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">predicted_text</span><span class="p">,</span> <span class="n">Y_test_text</span><span class="p">))</span>
-</pre></div>
-
-
-<div class="highlight"><pre><span></span>Sample of claim text: method for providing service address space, comprising providing service with service address space attached to main processor, wherein main processor is provided with main address space, wherein serv
-
-Predicted title is: networked engine memory secured same . 
- Test title is: providing service address space for diagnostics collection  
----
-
-Sample of claim text: an image processing device comprising filter control unit configured to on basis of an prediction mode, filter processing turned on or off as to neighboring pixels that are located to current block fo
-
-Predicted title is: determination virtual rfid swap manufacturing thin session mapping advanced wireless asset sequences telematics . 
- Test title is: image processing device and method  
----
-
-Sample of claim text: processor implemented method for operating client computing device to allow user to interact with network sites over network interface, method comprising initiating via processor operation of browser
-
-Predicted title is: analysis natural alternate adaptive personal methods of applications . 
- Test title is: system method apparatus and means for evaluating historical network activity  
----
-
-Sample of claim text: method of converting enterprise resource planning data in database managed by an application and accessed through an application programming interface api and message agent api to data in java object
-
-Predicted title is: multiple preparing peer estimating insertion signatures measurement . 
- Test title is: accessing a application over the internet using declarative language files  
----
-
-Sample of claim text: method for information units, method comprises receiving, by storage system, write requests for writing information units to storage system wherein write requests are initiated by multiple accessing e
-
-Predicted title is: fuel clustering dedicated length repair names view copy in web store engine . 
- Test title is: system method and a non transitory computer readable medium for a pre operation  
+Predicted title is: necessary causing computers space . 
+ Test title is: service to audio content with targeted audio advertising to users  
 ---
 </pre></div>
 
 
-<div class="highlight"><pre><span></span><span class="c1"># Testing</span>
-<span class="n">num_test_titles</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
-<span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_test_titles</span><span class="p">)</span>
-<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-<span class="n">X_test</span> <span class="o">=</span> <span class="n">X_test</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
-<span class="n">Y_test</span> <span class="o">=</span> <span class="n">Y_test</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
-<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span>
-    <span class="n">pred_seq</span> <span class="o">=</span> <span class="n">predict_sequence</span><span class="p">(</span><span class="n">infenc</span><span class="p">,</span> <span class="n">infdec</span><span class="p">,</span> <span class="n">X_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">decoder_seq_length</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
-    <span class="n">predicted_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">pred_seq</span><span class="p">,</span> <span class="n">y_dictionary</span><span class="p">)</span>
-    <span class="n">Y_test_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">Y_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">y_dictionary</span><span class="p">)</span>
-    <span class="n">claim_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">X_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">x_dictionary</span><span class="p">)</span>
-    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Sample of claim text: {}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">claim_text</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">200</span><span class="p">]))</span>
-    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Predicted title is: {}. </span><span class="se">\n</span><span class="s2"> Test title is: {} </span><span class="se">\n</span><span class="s2">---</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">predicted_text</span><span class="p">,</span> <span class="n">Y_test_text</span><span class="p">))</span>
-</pre></div>
-
-
-<div class="highlight"><pre><span></span>Sample of claim text: method for using persistent party for comprising via computing device, global array according to hierarchical server architecture, wherein hierarchical server architecture enables user to create and h
-
-Predicted title is: a volatile dimensional dimensional more more more more more more more dimensional determine dimensional more more more dimensional dimensional more more more . 
- Test title is: persistent party  
----
-
-Sample of claim text: an input device comprising selecting section for selecting pair from among plurality of x electrodes and y electrodes disposed as being spaced apart from each other detecting section for detecting tou
-
-Predicted title is: a volatile dimensional more more more dimensional more more more more more dimensional dimensional dimensional more more more more dimensional dimensional more . 
- Test title is: input device input control method program and electronic apparatus  
----
-
-Sample of claim text: an image processing apparatus comprising designating unit adapted to as an image processing function to be applied to an image of interest, any of plurality of image processing functions including cop
-
-Predicted title is: a more more volatile dimensional more more more more more more dimensional volatile dimensional dimensional dimensional image adjust dimensional transitory image volatile . 
- Test title is: image processing apparatus method and program  
----
-
-Sample of claim text: an image processing apparatus comprising separation unit configured to separate image data into luminance signal and color difference signal decision unit configured to reference pixel, which is refer
-
-Predicted title is: be . 
- Test title is: image processing apparatus  
----
-
-Sample of claim text: method comprising identifying, by one or more computers, an image in first storage system determining, by one or more computers, whether second storage system includes an entry for image identifying r
-
-Predicted title is: a dimensional volatile dimensional more more more more more dimensional more more dimensional more more more more more dimensional more more dimensional . 
- Test title is: methods and apparatus for automated object based image analysis and retrieval  
----
-</pre></div>
-
-
-<p>So low temperature reproduces the default results.</p>
-<div class="highlight"><pre><span></span><span class="c1"># Testing</span>
-<span class="n">num_test_titles</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
-<span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_test_titles</span><span class="p">)</span>
-<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-<span class="n">X_test</span> <span class="o">=</span> <span class="n">X_test</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
-<span class="n">Y_test</span> <span class="o">=</span> <span class="n">Y_test</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
-<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span>
-    <span class="n">pred_seq</span> <span class="o">=</span> <span class="n">predict_sequence</span><span class="p">(</span><span class="n">infenc</span><span class="p">,</span> <span class="n">infdec</span><span class="p">,</span> <span class="n">X_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">decoder_seq_length</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">)</span>
-    <span class="n">predicted_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">pred_seq</span><span class="p">,</span> <span class="n">y_dictionary</span><span class="p">)</span>
-    <span class="n">Y_test_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">Y_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">y_dictionary</span><span class="p">)</span>
-    <span class="n">claim_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">X_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">x_dictionary</span><span class="p">)</span>
-    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Sample of claim text: {}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">claim_text</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">200</span><span class="p">]))</span>
-    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Predicted title is: {}. </span><span class="se">\n</span><span class="s2"> Test title is: {} </span><span class="se">\n</span><span class="s2">---</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">predicted_text</span><span class="p">,</span> <span class="n">Y_test_text</span><span class="p">))</span>
-</pre></div>
-
-
-<div class="highlight"><pre><span></span>Sample of claim text: computer-implemented method for analyzing data representative of media material having layout, comprising identifying block segments associated with body text in media material and determining which o
-
-Predicted title is: electrode localization funds link being . 
- Test title is: methods and systems for analyzing data in media material having layout  
----
-
-Sample of claim text: computer interface system comprising at least one camera operable to create an image of by user, comprising plurality of features and b processing module operable to receive created image of and deter
-
-Predicted title is: unstructured log entity plural adapted performed . 
- Test title is: for camera calibration and as a gesture based 3d interface device  
----
-
-Sample of claim text: computer-implemented method, comprising receiving, by computing system, multiple portions of text that were input into different types of fields associated with resource selecting i first threshold va
-
-Predicted title is: preferred map merging horizontal pad refinement normal operands editing multicore health party storage communication terminal or management server memory . 
- Test title is: selectively processing user input  
----
-
-Sample of claim text: mobile terminal comprising display memory configured to store at least one image fragment first camera user input unit configured to receive input and controller configured to cause display to display
-
-Predicted title is: determining technical tomography initiating sequences behavior spatial particular electro managing pipeline assistance shared listing commerce user requesting arithmetic criteria domains insertion schema . 
- Test title is: mobile terminal and controlling method thereof  
----
-
-Sample of claim text: an information handling system comprising plurality of ports for sending data to and receiving data from one or more devices one or more processors that are communicatively coupled to plurality of por
-
-Predicted title is: mass diagram level user&#39;s development metal identification operable requests computer machine attached product . 
- Test title is: reducing internal fabric in switch fabric  
----
-</pre></div>
-
-
-<div class="highlight"><pre><span></span><span class="c1"># Testing</span>
-<span class="n">num_test_titles</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
-<span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_test_titles</span><span class="p">)</span>
-<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-<span class="n">X_test</span> <span class="o">=</span> <span class="n">X_test</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
-<span class="n">Y_test</span> <span class="o">=</span> <span class="n">Y_test</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
-<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span>
-    <span class="n">pred_seq</span> <span class="o">=</span> <span class="n">predict_sequence</span><span class="p">(</span><span class="n">infenc</span><span class="p">,</span> <span class="n">infdec</span><span class="p">,</span> <span class="n">X_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">decoder_seq_length</span><span class="p">)</span>
-    <span class="n">predicted_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">pred_seq</span><span class="p">,</span> <span class="n">y_dictionary</span><span class="p">)</span>
-    <span class="n">Y_test_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">Y_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">y_dictionary</span><span class="p">)</span>
-    <span class="n">claim_text</span> <span class="o">=</span> <span class="n">seq2text</span><span class="p">(</span><span class="n">X_test</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">x_dictionary</span><span class="p">)</span>
-    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Sample of claim text: {}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">claim_text</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">200</span><span class="p">]))</span>
-    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Predicted title is: {} </span><span class="se">\n</span><span class="s2"> Test title is: {} </span><span class="se">\n</span><span class="s2">---</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">predicted_text</span><span class="p">,</span> <span class="n">Y_test_text</span><span class="p">))</span>
-</pre></div>
-
-
-<div class="highlight"><pre><span></span>Sample of claim text: an id document comprising document core layer having two opposed surfaces and on at least one surface of document core layer, comprising top layer middle layer and bottom layer, wherein point of botto
-
-Predicted title is: removal human partitioning related recording platforms  
- Test title is: id documents having a multi layered structure  
----
-
-Sample of claim text: method for presenting story content relating to and location of interest, method comprising receiving query comprising an intersection criteria, intersection criteria comprising location and of intere
-
-Predicted title is: item many step chips overlay transmitting  
- Test title is: systems and methods for collaborative in a virtual space  
----
-
-Sample of claim text: method of forming an image using plurality of comprising receiving at least one raster of image pixels each having discrete value for each of for raster associated with defective modifying values of p
-
-Predicted title is: held appearance execution acceleration site containing reporting common remote it nand configurations  
- Test title is: replacing a  
----
-
-Sample of claim text: an integrated circuit ic comprising digital circuit comprising derived clock circuit configured to receive root clock having frequency and single phase, wherein d is divide factor for root wherein der
-
-Predicted title is: detect compliance separation  
- Test title is: apparatus and method for reducing interference signals in an integrated circuit using  
----
-
-Sample of claim text: method for using secure socket layer session from pool of sessions shared between method comprising receiving, by first intermediary device, information on one or more sessions of pool established by
-
-Predicted title is: different appearance interference characters via modules including web sequences  
- Test title is: systems and methods of using pools for acceleration  
----
-</pre></div>
-
-
-<h4>Comments on Results</h4>
-<p>Interestingly these results vary a little from the Ludwig model.</p>
-<p>We generally have a lower loss (~1.3 on training data, compared to ~2.5 for Ludwig model). The results from the present model seem less a memorisation of previous titles - they include more grammatical variations and seem to be more mixtures of different title portions.</p>
-<p>However, the answers seem less well-formed than the Ludwig model, making them subjectively appear worse.</p>
-<p>There again appears a disconnect between the claim and the predicted title. </p>
-<p>The model appears to start overfitting around 50 iterations (~4 to 5 epochs based on how we split our data). This can be seen by the way our test loss begins to increase and diverge from our training loss.</p>
-<h4>Options for Further Investigation</h4>
-<p>Here are some ideas we could try:</p>
-<ul>
-<li>Adding attention.</li>
-<li>Adding pointers / skip connections between the encoded data and the decoder.</li>
-<li>Using a more advanced sampling procedure such as beam search.</li>
-<li>Using GloVe embeddings and a shared embedding layer (similar to the Ludwig model).</li>
-<li>Adding a discriminator to the output (similar to the Ludwig model).</li>
-<li>Using lemmas instead of words to allow an increase in useful vocabulary.</li>
-<li>Use a coverage measure to prevent repetition.</li>
-</ul>
+<p>These titles still appear worse than those produced with the Ludwig model, despite a lower loss. The model almost appears to be guessing random words. This may be due to how the decoder is trained.</p>
 <hr>
 <h2>Summary</h2>
-<p>In this post we have:</p>
+<p>Here we have looked at applying pre-trained word embeddings, and a shared embedding layer, to our sequence to sequence models.</p>
+<p>This approach appears to very slightly improve our models. At the very least, it does not appear to worsen the models and provides a useful simplification. Hence, it appears to be a useful addition to our models.</p>
+<h3>Making Things Easier</h3>
+<p>As we saw in this post, we are now reusing much of our previous code. To simplify our notebooks it would now be a good idea to abstract over some of the functionality. To do this we can create Python objects (classes) that have a common interface for both models, and that maximise reuse of common routines where possible.</p>
+<p>To this end we can create four classes:</p>
 <ul>
-<li>Constructed two sequence-to-sequence models.</li>
-<li>Applied theses models to our patent claim and title data.</li>
-<li>Looked at the performance of each model, including identifying strengths and weaknesses.</li>
+<li>An abstract class that defines the common interfaces. This is found in the file <a href="https://benhoyle.github.io/notebooks/title_generation/abstract_model_wrapper.py">here</a>.</li>
+<li>A derived abstract class that defines common sequence-to-sequence model functions. This is found in the file <a href="https://benhoyle.github.io/notebooks/title_generation/base_seq2seq.py">here</a>.</li>
+<li>A concrete class for the Ludwig model with shared embeddings. This differs from the above class through the use of a custom <code>_build_model()</code> function. This is found in the file <a href="https://benhoyle.github.io/notebooks/title_generation/ludwig_model.py">here</a>.</li>
+<li>A concrete class for the Chollet/Brownlee model with shared embeddings. This also differs from the derived abstract class through the use of a custom <code>_build_model()</code> function. This is found in the file <a href="https://benhoyle.github.io/notebooks/title_generation/cb_model.py">here</a>.</li>
 </ul>
-<p>The models are still pretty bad and a long way away from a production level system.</p>
+<p>We can then concentrate on over-riding the model building part of the class while leaving all other functions the same.</p>
     </div>
     <hr/>
     <footer>
       <ul class="list-inline">
-        <li class="list-inline-item text-muted" title="2018-04-15T16:03:56.649938+01:00">
+        <li class="list-inline-item text-muted" title="2018-04-16T13:47:34.430674+01:00">
           <i class="fa fa-clock-o"></i>
-          Sun 15 April 2018
+          Mon 16 April 2018
         </li>
         <li class="list-inline-item">
           <i class="fa fa-folder-open-o"></i>
@@ -1208,7 +1112,7 @@ Predicted title is: different appearance interference characters via modules inc
               <a href="https://benhoyle.github.io/author/ben-hoyle.html">Ben Hoyle</a>          </li>
           <li class="list-inline-item">
             <i class="fa fa-files-o"></i>
-              <a href="https://benhoyle.github.io/tag/spot_checking.html">#spot_checking</a>          </li>
+              <a href="https://benhoyle.github.io/tag/improving_results.html">#improving_results</a>          </li>
       </ul>
     </footer>
   </article>
