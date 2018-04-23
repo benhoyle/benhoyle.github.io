@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <!-- Required meta tags -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <title>  4C. Title Generation - Developing the Model - Beam Search | Practical Machine Learning Adventures
+</title>
+  <link rel="canonical" href="https://benhoyle.github.io/part-4c-title-generation-developing-the-model-beam-search.html">
+
+
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.9/css/all.css" integrity="sha384-5SOiIsAziJl6AWe0HWRKTXlfcSHKmYV4RBF18PPJ173Kzn7jzMyFuTtk8JA7QQG1" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/pygments/default.min.css">
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/theme.css">
+
+  <link rel="alternate" type="application/atom+xml" title="Full Atom Feed"
+        href="https://benhoyle.github.io/feeds/all.atom.xml">
+  <link rel="alternate" type="application/atom+xml" title="Categories Atom Feed"
+        href="https://benhoyle.github.io/feeds/title-generation.atom.xml">  
+  <meta name="description" content="This post looks at developing our initial models to include state of the art features to improve results.">
+  <script>
+    (function(i, s, o, g, r, a, m) {
+      i['GoogleAnalyticsObject'] = r;
+      i[r] = i[r] || function() {
+        (i[r].q = i[r].q || []).push(arguments)
+      }, i[r].l = 1 * new Date();
+      a = s.createElement(o);
+      a.async = 1;
+      a.src = g;
+      m = s.getElementsByTagName(o)[0];
+      m.parentNode.insertBefore(a, m)
+    })(window, document, 'script', 'https://www.google-analytics.com/analytics.js', 'ga');
+    ga('create', 'UA-96290248-2', 'auto');
+    ga('send', 'pageview');
+  </script>
+
+
+</head>
+
+<body>
+  <header class="header">
+    <div class="container">
+<div class="row">
+  <div class="col-sm-12">
+    <h1 class="title"><a href="https://benhoyle.github.io/">Practical Machine Learning Adventures</a></h1>
+      <p class="text-muted">A selection of machine learning projects</p>
+  </div>
+</div>    </div>
+  </header>
+
+  <div class="main">
+    <div class="container">
+  <article class="article">
+    <div class="content">
+      <h1>4C. Title Generation - Developing the Model - Beam Search</h1>
+<p>This post looks at developing our initial models to include state of the art features to improve results.</p>
+<p>To recap:</p>
+<ul>
+<li>We have two models: the Ludwig model and the Chollet/Brownlee model. </li>
+<li>Performance so far has been fairly poor but the Ludwig model appears to give better results out of the box.</li>
+<li>Each model had slightly different characteristics - the Ludwig model produced better formed output but seemed to simply memorise and repeat titles, the Chollet/Brownlee model had a lower loss and appeared to memorise less but produced more nonsensical outputs.</li>
+</ul>
+<p>In this post we will look at implementing a beam search decoder as an improvement to our previous greedy decoder.</p>
+<h3>Beam Search Decoding</h3>
+<p>This <a href="https://www.youtube.com/watch?v=UXW6Cs82UKo">video from the Udacity Deep Learning Course</a> provides a good explanation of beam search.</p>
+<p>Basically, when you generate a sequence on a token-by-token basis, each token has an associated probability, where the decoder outputs a vector indicative of probabilities for all possible tokens (in our model at least). </p>
+<p>A naive way to select the tokens for the sequence is just to select the largest probability at each step in the sequence. Many decoder structures that are described on the Internet do this. However, this can lead to problems: if you have several tokens with similar probabilities, you might select one token that actually leads to a less likely sequence overall.</p>
+<p>To remedy this you might want to keep track of all possible output sequences. However, the number of possible sequences grows exponentially. (Even with a small vocabulary of 2500 tokens you can end up the same number of sequences as there are atoms in the universe!) Beam search makes this manageable by keeping track of only k top sequences. </p>
+<p>Machine Learning Mastery has an article <a href="https://machinelearningmastery.com/beam-search-decoder-natural-language-processing/">here</a> that describes how to implement a beam search in Python. However, in the comments this is criticised for being too simplistic. On review, I think this criticism is warranted: the function does not look at different, branching trees of tokens; instead, the probabilities are "given" in a pre-generated array.</p>
+<p>Here is <a href="https://gist.github.com/udibr/67be473cf053d8c38730">another example</a> of a beam search for keras and here is an <a href="http://www.cs.cmu.edu/afs/cs/academic/class/46927-f97/slides/Lec3/sld023.htm">example slide</a> showing the branching trees.</p>
+<p>To implement, the beam search algorithm, we need a function that performs the following steps:</p>
+<ul>
+<li>Initialise probabilities to 1 for start token;</li>
+<li>Predict the list of probabilities for the start token;</li>
+<li>Update scores as score * -log(list of probs);</li>
+<li>Select the k top scores;</li>
+<li>Build k sequences for each of the k top probabilities  = start token + prediction for 0 to k-1; and</li>
+<li>Iterate by predicting the next token for each sequence and updating the scores and sequences.</li>
+</ul>
+<p>We can also amend our methods for printing examples to print the top k sequences and their probabilities.</p>
+<p>With reference to our models, we can implement beam search as a custom <code>_predict_from_seq()</code> method.</p>
+<p>We need a data structure to store, for our k top sequences:</p>
+<ul>
+<li>scores;</li>
+<li>token sequences.</li>
+</ul>
+<p>Our input will be:</p>
+<ul>
+<li>claim text (as for our previous decoder); and</li>
+<li>a value for k, the number of sequences to track.</li>
+</ul>
+<p>We want to output:</p>
+<ul>
+<li>the k sequences with top scores, where sequences stop when the stop token is predicted or when the maximum number of output tokens is reached.</li>
+</ul>
+<h2>Ludwig Model - Custom Decoding Function</h2>
+<p>Let's start by working on our custom decoding function. This will have the form of <code>_predict_from_seq()</code> as previously developed.</p>
+<p>We can first try this out and debug as a separate method that takes a pre-existing model object as self. Once we get something working we can then easily create a custom class that inherits from a previous object definition that has the custom beam search decoding method.</p>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">ludwig_model</span> <span class="kn">import</span> <span class="n">LudwigModel</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="o">/</span><span class="n">home</span><span class="o">/</span><span class="n">ben</span><span class="o">/</span><span class="n">anaconda3</span><span class="o">/</span><span class="n">envs</span><span class="o">/</span><span class="n">tf_gpu_source</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">python3</span><span class="o">.</span><span class="mi">6</span><span class="o">/</span><span class="n">site</span><span class="o">-</span><span class="n">packages</span><span class="o">/</span><span class="n">h5py</span><span class="o">/</span><span class="fm">__init__</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">36</span><span class="p">:</span> <span class="ne">FutureWarning</span><span class="p">:</span> <span class="n">Conversion</span> <span class="n">of</span> <span class="n">the</span> <span class="n">second</span> <span class="n">argument</span> <span class="n">of</span> <span class="n">issubdtype</span> <span class="kn">from</span> <span class="sb">`float`</span> <span class="n">to</span> <span class="sb">`np.floating`</span> <span class="ow">is</span> <span class="n">deprecated</span><span class="o">.</span> <span class="n">In</span> <span class="n">future</span><span class="p">,</span> <span class="n">it</span> <span class="n">will</span> <span class="n">be</span> <span class="n">treated</span> <span class="k">as</span> <span class="sb">`np.float64 == np.dtype(float).type`</span><span class="o">.</span>
+  <span class="kn">from</span> <span class="nn">._conv</span> <span class="kn">import</span> <span class="n">register_converters</span> <span class="k">as</span> <span class="n">_register_converters</span>
+<span class="n">Using</span> <span class="n">TensorFlow</span> <span class="n">backend</span><span class="o">.</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="c1"># Load our data as before</span>
+<span class="kn">import</span> <span class="nn">pickle</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="n">PIK</span> <span class="o">=</span> <span class="s2">&quot;claim_and_title.data&quot;</span>
+
+<span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">PIK</span><span class="p">):</span>
+    <span class="c1"># Download file</span>
+    <span class="err">!</span><span class="n">wget</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">benhoyle</span><span class="o">.</span><span class="n">github</span><span class="o">.</span><span class="n">io</span><span class="o">/</span><span class="n">notebooks</span><span class="o">/</span><span class="n">title_generation</span><span class="o">/</span><span class="n">claim_and_title</span><span class="o">.</span><span class="n">data</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">PIK</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Loading data&quot;</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;{0} samples loaded&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)))</span>
+
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">Adding start and stop tokens to output&quot;</span><span class="p">)</span>
+<span class="n">data</span> <span class="o">=</span> <span class="p">[(</span><span class="n">c</span><span class="p">,</span> <span class="s2">&quot;startseq {0} stopseq&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">t</span><span class="p">))</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">An example title:&quot;</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;----&quot;</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;An example claim:&quot;</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>Loading data
+30000 samples loaded
+
+
+Adding start and stop tokens to output
+
+
+An example title: startseq System and method for session restoration at geo-redundant gateways stopseq
+----
+An example claim: 
+1. A method for managing a backup service gateway (SGW) associated with a primary SGW, the method comprising:
+periodically receiving from the primary SGW at least a portion of corresponding UE session state information, the received portion of session state information being sufficient to enable the backup SGW to indicate to an inquiring management entity that UEs having an active session supported by the primary SGW are in a live state; and
+in response to a failure of the primary SGW, the backup SGW assuming management of IP addresses and paths associated with said primary SGW and transmitting a Downlink Data Notification (DDN) toward a Mobility Management Entity (MME) for each of said UEs having an active session supported by the failed primary SGW to detach from the network and reattach to the network, wherein each DDN causes the MME to send a detach request with a reattach request code to the respective UE.
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">machine</span> <span class="o">=</span> <span class="n">LudwigModel</span><span class="p">(</span>
+    <span class="n">encoder_texts</span><span class="o">=</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">],</span>
+    <span class="n">decoder_texts</span><span class="o">=</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">],</span>
+    <span class="n">encoder_seq_length</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
+    <span class="n">decoder_seq_length</span><span class="o">=</span><span class="mi">22</span><span class="p">,</span>
+    <span class="n">num_encoder_tokens</span><span class="o">=</span><span class="mi">2500</span><span class="p">,</span>
+    <span class="n">num_decoder_tokens</span><span class="o">=</span><span class="mi">2500</span><span class="p">,</span>
+    <span class="n">latent_dim</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">weights_file</span><span class="o">=</span><span class="s2">&quot;LW_model.hdf5&quot;</span><span class="p">,</span>
+    <span class="n">training_set_size</span><span class="o">=</span><span class="mi">250</span>
+<span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">Fitting</span> <span class="n">tokenizers</span>
+<span class="n">Our</span> <span class="n">input</span> <span class="n">data</span> <span class="k">has</span> <span class="nb">shape</span> (<span class="mi">30000</span>, <span class="mi">300</span>) <span class="o">and</span> <span class="k">our</span> <span class="n">output</span> <span class="n">data</span> <span class="k">has</span> <span class="nb">shape</span> (<span class="mi">30000</span>, <span class="mi">22</span>)
+<span class="n">Generating</span> <span class="n">training</span> <span class="o">and</span> <span class="n">test</span> <span class="n">data</span>
+<span class="n">Building</span> <span class="n">model</span>
+<span class="n">Loading</span> <span class="n">GloVe</span> <span class="mi">100</span><span class="n">d</span> <span class="n">embeddings</span> <span class="nb">from</span> <span class="n">file</span>
+<span class="n">Found</span> <span class="mi">400000</span> <span class="n">word</span> <span class="n">vectors</span>.
+<span class="n">Building</span> <span class="n">embedding</span> <span class="n">matrix</span>
+<span class="n">Compiling</span> <span class="n">model</span>
+<span class="n">Loaded</span> <span class="n">weights</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="c1"># Imports </span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">random</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+
+
+<span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="n">preds</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Helper function to sample an index from a probability array. &quot;&quot;&quot;</span>
+    <span class="n">preds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">preds</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;float64&#39;</span><span class="p">)</span>
+    <span class="n">preds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">preds</span><span class="p">)</span> <span class="o">/</span> <span class="n">temperature</span>
+    <span class="n">exp_preds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">preds</span><span class="p">)</span>
+    <span class="n">preds</span> <span class="o">=</span> <span class="n">exp_preds</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">exp_preds</span><span class="p">)</span>
+    <span class="n">probas</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">multinomial</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">preds</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">probas</span>
+
+<span class="k">def</span> <span class="nf">_predict_from_seq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_data</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">temp</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Predict output text from input text. &quot;&quot;&quot;</span>
+    <span class="n">input_seq</span> <span class="o">=</span> <span class="n">input_data</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder_seq_length</span><span class="p">)</span>
+    <span class="n">ndt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_decoder_tokens</span>  <span class="c1"># Just shorten the variable name </span>
+    <span class="n">output_sequences</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">ans_partial</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">decoder_seq_length</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span>
+    <span class="n">ans_partial</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_dictionary</span><span class="p">[</span><span class="s2">&quot;startseq&quot;</span><span class="p">]</span>
+
+    <span class="c1"># Initialise data storage - char sequence, state sequence, scores</span>
+    <span class="n">sequences</span> <span class="o">=</span> <span class="p">[[</span><span class="n">ans_partial</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]</span>
+
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">decoder_seq_length</span><span class="p">):</span>
+        <span class="c1"># Create an empty array to hold the scores in each pass</span>
+        <span class="n">new_scores</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sequences</span><span class="p">)</span><span class="o">*</span><span class="n">ndt</span><span class="p">))</span>
+        <span class="n">temp_states</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1">#print([s[0] for s in sequences])</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">seq</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">sequences</span><span class="p">):</span>
+            <span class="c1">#print(i, seq[0])</span>
+            <span class="c1"># Get most recent score</span>
+            <span class="n">prev_score</span> <span class="o">=</span> <span class="n">seq</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="c1"># Get current token sequence</span>
+            <span class="n">ans_partial</span> <span class="o">=</span> <span class="n">seq</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="c1"># Predict token probabilities using previous state and token for sequence</span>
+            <span class="n">yhat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">infdec</span><span class="o">.</span><span class="n">predict</span><span class="p">([</span><span class="n">input_seq</span><span class="p">,</span> <span class="n">ans_partial</span><span class="p">])</span>
+            <span class="c1"># Unpack yhat array of probabilities</span>
+            <span class="c1">#yhat = sample(yhat[0, 0, :])</span>
+            <span class="n">yhat</span> <span class="o">=</span> <span class="n">yhat</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]</span>
+            <span class="c1"># print(yhat)</span>
+            <span class="c1"># As we are taking the log do we not sum the scores?</span>
+            <span class="n">new_scores</span><span class="p">[</span><span class="n">i</span><span class="o">*</span><span class="n">ndt</span><span class="p">:(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">ndt</span><span class="p">]</span> <span class="o">=</span> <span class="n">prev_score</span><span class="o">+-</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">yhat</span><span class="p">)</span> 
+            <span class="c1"># print(new_scores)</span>
+            <span class="c1"># Actually I only need to look at the top k for each sequence, then further distill these down to the top k</span>
+            <span class="c1"># across all sequences - maybe one for optimising later</span>
+
+        <span class="c1"># Outside of loop we want to pick the k highest scores</span>
+        <span class="c1"># Each sequence has a set of scores equal in size to num_decoder_tokens- i.e. k*n_d_t scores in total</span>
+        <span class="c1"># We want to select the k highest scores across all scores in total - but then we need to know</span>
+        <span class="c1"># We just modulo k on the index to find the indice and int(index/num_decoder_tokens) to find k</span>
+
+        <span class="c1"># Then update the sequences to reflect these k highest scores</span>
+
+        <span class="c1"># select top k scores -as we are minimising these are at bottom of list</span>
+        <span class="n">top_k_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">new_scores</span><span class="p">)[:</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        <span class="c1">#print(new_scores[top_k_indices])</span>
+        <span class="c1">#print(top_k_indices)</span>
+        <span class="n">new_sequences</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">seqs_to_delete</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="n">top_k_indices</span><span class="p">:</span>
+            <span class="n">seq_select</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">index</span><span class="o">/</span><span class="n">ndt</span><span class="p">)</span>
+            <span class="c1">#print(&quot;Selected seq: &quot;, seq_select)</span>
+            <span class="c1">#print(&quot;Length of sequences: &quot;, len(sequences))</span>
+            <span class="n">new_token</span> <span class="o">=</span> <span class="n">index</span> <span class="o">%</span> <span class="n">ndt</span> <span class="c1"># this is the token index</span>
+            <span class="c1"># This is equivalent to argmax - but should we actually be sampling?</span>
+            <span class="c1"># Update the partial answer</span>
+            <span class="n">new_ans_partial</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">decoder_seq_length</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span>
+            <span class="n">new_ans_partial</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">sequences</span><span class="p">[</span><span class="n">seq_select</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">:]</span>
+            <span class="c1"># This then adds the newly decoded word onto the end of ans_partial</span>
+            <span class="n">new_ans_partial</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_token</span>
+            <span class="c1">#print(new_scores[index])</span>
+            <span class="n">entry</span> <span class="o">=</span> <span class="p">(</span><span class="n">new_ans_partial</span><span class="p">,</span> <span class="n">new_scores</span><span class="p">[</span><span class="n">index</span><span class="p">])</span>
+            <span class="c1"># If predicted token is end token</span>
+            <span class="k">if</span> <span class="n">new_token</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_dictionary</span><span class="p">[</span><span class="s2">&quot;stopseq&quot;</span><span class="p">]:</span>
+                <span class="c1"># Add data for output</span>
+                <span class="n">output_sequences</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span>
+                <span class="c1"># Reduce k by 1</span>
+                <span class="n">k</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Add to list of new sequences to use</span>
+                <span class="n">new_sequences</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span>
+        <span class="n">sequences</span> <span class="o">=</span> <span class="n">new_sequences</span>
+        <span class="k">if</span> <span class="n">k</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">break</span>
+
+    <span class="c1"># Sort list in reverse &quot;score&quot; order</span>
+    <span class="n">output_sequences</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">output_sequences</span>
+
+<span class="k">def</span> <span class="nf">print_examples</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">number</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
+    <span class="n">num_test_titles</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input_test_data</span><span class="p">)</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">num_test_titles</span><span class="p">),</span> <span class="n">number</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">:</span>
+        <span class="n">input_sample</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_test_data</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">output_sample</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_test_data</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">seqs</span> <span class="o">=</span> <span class="n">_predict_from_seq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_sample</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+        <span class="n">output_sample_text</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_seq2text</span><span class="p">(</span><span class="n">output_sample</span><span class="p">)</span>
+        <span class="n">claim_text</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_seq2text</span><span class="p">(</span><span class="n">input_sample</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;-----------------&quot;</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Sample of claim text: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">claim_text</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">200</span><span class="p">]))</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;-----------------&quot;</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Actual title is: {} </span><span class="se">\n</span><span class="s2">---&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">output_sample_text</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">seq</span><span class="p">,</span> <span class="n">score</span> <span class="ow">in</span> <span class="n">seqs</span><span class="p">:</span>
+            <span class="n">o_string</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">&quot;Predicted title is: {0} with score {1}&quot;</span>
+            <span class="p">)</span>
+
+            <span class="k">print</span><span class="p">(</span><span class="n">o_string</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_seq2text</span><span class="p">(</span><span class="n">seq</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()),</span> <span class="n">score</span><span class="p">))</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="c1"># Let&#39;s test without Beam Search decoding</span>
+<span class="n">machine</span><span class="o">.</span><span class="n">example_output</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>------------------------------------------
+Sample of claim text: 1 a computer implemented system for providing users with an interface comprising temporal information the system comprising a computer system the computer system comprising at least one processor and
+
+Predicted title is: method and system for providing a user interface  
+Actual title is: providing temporal information to users  
+---
+Sample of claim text: blocks being disposed against the hot key patterns the first electrode blocks being disposed against the key group pattern the second sensing block being disposed against the cursor control pattern th
+
+Predicted title is: integrated circuit with a power supply  
+Actual title is: integrated input apparatus  
+---
+Sample of claim text: 1 a mobile product inventory management device comprising a display a camera a processor and a recognition module executable on the processor and that the processor to capture image data via the camer
+
+Predicted title is: method and system for providing a product  
+Actual title is: virtual management systems and methods  
+---
+Sample of claim text: 1 a method comprising receiving a two dimensional 2d image frame receiving three dimensional 3d image data corresponding to the 2d image frame using the 3d image data corresponding to the 2d image fra
+
+Predicted title is: method and apparatus for three dimensional image  
+Actual title is: using a combination of 2d and 3d image data to determine hand features information  
+---
+Sample of claim text: 1 a non transitory computer readable medium having computer executable instructions for performing a method comprising collecting performance data for different domains in a system by activating a plu
+
+Predicted title is: method and system for managing data  
+Actual title is: system and method to monitor performance of different domains associated with a computer or network  
+---
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="bp">self</span> <span class="o">=</span> <span class="n">machine</span>
+<span class="n">print_examples</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>-----------------
+Sample of claim text: 1 a display control apparatus for controlling a display content of a display section of a peripheral that is connected to the display control apparatus the display section being included by the periph
+-----------------
+
+Actual title is: display control apparatus communicating with a peripheral to present operational information to users  
+---
+Predicted title is: display apparatus  with score 4.325193405151367
+Predicted title is: information processing apparatus information processing method and recording medium  with score 8.561894416809082
+Predicted title is: method and apparatus for portable electronic device  with score 8.68794059753418
+Predicted title is: information processing apparatus information processing method and electronic device  with score 10.179014205932617
+Predicted title is: information processing apparatus information processing method and computer readable medium  with score 10.28657341003418
+-----------------
+Sample of claim text: and memory configured for connection with a plurality of components of the aircraft to retrieve data from one or more modules of the aircraft components a configuration file in said portable computer 
+-----------------
+
+Actual title is: configuration management apparatus and related methods  
+---
+Predicted title is: system and method for data processing  with score 8.64958381652832
+Predicted title is: system and method for managing data  with score 9.201067924499512
+Predicted title is: system and method for data processing in a virtual environment  with score 12.002704620361328
+Predicted title is: system and method for data processing in a virtual machine  with score 13.135804176330566
+Predicted title is: system and method for data processing in a web page  with score 13.158220291137695
+-----------------
+Sample of claim text: 1 a computer implemented method for processing a selection associated with a media content received in an electronic broadcast transmission the media content presented by a receiving device and the me
+-----------------
+
+Actual title is: broadcast response method and system  
+---
+Predicted title is: system and method for data  with score 6.181354522705078
+Predicted title is: system and method for data processing  with score 7.070134162902832
+Predicted title is: system and method for data processing in an electronic device  with score 11.689477920532227
+Predicted title is: system and method for data processing in an electronic system  with score 11.725565910339355
+Predicted title is: system and method for data processing in a digital media system  with score 12.572397232055664
+-----------------
+Sample of claim text: 1 a method of detecting human objects in a video comprising determining pixels of a video image are foreground pixels the group of foreground pixels a foreground set of one or more foreground for each
+-----------------
+
+Actual title is: 3d human pose and shape modeling  
+---
+Predicted title is: method and apparatus for creating images  with score 7.900638103485107
+Predicted title is: method and apparatus for creating and displaying images  with score 11.06941032409668
+Predicted title is: method and apparatus for creating images of images  with score 11.170570373535156
+Predicted title is: method and apparatus for creating and displaying video  with score 12.05427360534668
+Predicted title is: method and apparatus for creating and displaying video images  with score 12.832809448242188
+-----------------
+Sample of claim text: 1 in a computing system environment a method of of files stored on one or more computing devices each file having a plurality of symbols representing an underlying data stream of original bits of data
+-----------------
+
+Actual title is: grouping and volumes of files  
+---
+Predicted title is: system and method for creating data  with score 9.60139274597168
+Predicted title is: system and method for creating a data stream  with score 11.702018737792969
+Predicted title is: systems and methods for creating a data stream  with score 12.231966018676758
+Predicted title is: system and method for creating data in a data stream  with score 14.472331047058105
+Predicted title is: system and method for creating data from a data stream  with score 14.49394416809082
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">print_examples</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>-----------------
+Sample of claim text: 1 a computer implemented method of reducing risk in a payment based transaction wherein payment is made from an account holder to a using a payment bank system operated by a payment bank the method co
+-----------------
+
+Actual title is: reducing risk in a payment based transaction based upon at least one user supplied risk parameter including a payment limit  
+---
+Predicted title is: payment system  with score 5.297518253326416
+Predicted title is: payment payment system  with score 5.336144924163818
+Predicted title is: system and method for payment transactions  with score 5.893258571624756
+Predicted title is: systems and methods for payment transactions  with score 6.355759620666504
+Predicted title is: method and system for payment transactions  with score 6.844301223754883
+Predicted title is: systems and methods for payment payment transactions  with score 7.168615818023682
+Predicted title is: system and method for payment payment transactions  with score 7.247190952301025
+Predicted title is: system and method for payment processing  with score 7.810699939727783
+Predicted title is: system and method for payment payment  with score 7.991192817687988
+Predicted title is: methods and systems for payment payment transactions  with score 8.089160919189453
+-----------------
+Sample of claim text: 1 a method performed by a system that supports services between a plurality of and a plurality of in a communication network the method comprising delivering a seller interface via the communication n
+-----------------
+
+Actual title is: system supporting creation  
+---
+Predicted title is: method and system for providing a product  with score 13.070158004760742
+Predicted title is: methods and systems for providing a product  with score 13.112994194030762
+Predicted title is: system and method for providing a product  with score 13.368507385253906
+Predicted title is: method and apparatus for providing a product  with score 13.528003692626953
+Predicted title is: methods and systems for providing a product item  with score 15.519207954406738
+Predicted title is: method and system for providing a product item  with score 15.596986770629883
+Predicted title is: method and apparatus for providing real time messaging  with score 15.767982482910156
+Predicted title is: method and system for providing real time messaging  with score 15.802291870117188
+Predicted title is: method and system for providing real time party based on the internet  with score 24.388505935668945
+Predicted title is: method and system for providing real time party based on a plurality of resources  with score 27.679676055908203
+-----------------
+Sample of claim text: 1 a method of providing consistent user experience in the method comprising receiving an indication of a target level of user experience for an application computing a target application performance c
+-----------------
+
+Actual title is: cache management in application  
+---
+Predicted title is: system and method for managing application  with score 11.204858779907227
+Predicted title is: system and method for managing application development  with score 12.491059303283691
+Predicted title is: system and method for providing a document  with score 13.075180053710938
+Predicted title is: system and method for providing a secure document  with score 13.515348434448242
+Predicted title is: system and method for generating a secure document  with score 14.135204315185547
+Predicted title is: system and method for providing a user interface  with score 14.223642349243164
+Predicted title is: system and method for providing a user space  with score 14.36276912689209
+Predicted title is: system and method for providing a cache based on user preferences  with score 19.699052810668945
+Predicted title is: system and method for providing a cache based on user space  with score 20.409120559692383
+Predicted title is: system and method for providing a cache based on user preferences of a user  with score 28.28386688232422
+-----------------
+Sample of claim text: or more programmable processors a plurality of data objects associated with data stored in a database at a persistent storage the providing for execution of a service called by an application storing 
+-----------------
+
+Actual title is: for objects  
+---
+Predicted title is: system and method for data collection  with score 9.759042739868164
+Predicted title is: system and method for data processing  with score 9.763725280761719
+Predicted title is: system and method for managing data  with score 10.533380508422852
+Predicted title is: system and method for creating a database  with score 11.950915336608887
+Predicted title is: system and method for data processing in a database  with score 13.33000373840332
+Predicted title is: system and method for data processing in a cluster  with score 13.828896522521973
+Predicted title is: system and method for data collection in a database  with score 13.97393798828125
+Predicted title is: system and method for data processing in a database system  with score 14.517136573791504
+Predicted title is: system and method for data processing in a cloud  with score 14.586236000061035
+Predicted title is: system and method for data processing in a cloud computing environment  with score 14.967475891113281
+-----------------
+Sample of claim text: 1 a method for enabling a product offering received by a client from a vendor the method comprising in a computer system at the client providing to the vendor a plurality of strings computing an index
+-----------------
+
+Actual title is: secure product over channels with bandwidth  
+---
+Predicted title is: method and system for providing financial transactions  with score 10.173721313476562
+Predicted title is: method and system for providing a product  with score 10.914628982543945
+Predicted title is: system and method for providing a product  with score 10.918341636657715
+Predicted title is: methods and systems for providing a product  with score 11.22200870513916
+Predicted title is: system and method for providing a secure product  with score 12.802101135253906
+Predicted title is: method and system for providing a secure product  with score 12.827587127685547
+Predicted title is: system and method for providing a product item  with score 13.25611686706543
+Predicted title is: method and system for providing a product item  with score 13.26268196105957
+Predicted title is: method and system for providing a product development  with score 13.407301902770996
+Predicted title is: system and method for providing a product development  with score 13.513633728027344
+</pre></div>
+
+
+<hr>
+<h2>Comments</h2>
+<p>Using the beam search decoder has two advantages:
+- it improves the quality of our predicted titles: the highest scoring titles in these examples appear to reflect fairly accurately the most relevant titles; and
+- it allows us to visualise how our models are working by outputing the k highest scoring entries.</p>
+<p>The downside is that decoding time is increased. But this doesn't matter that much for our toy project.</p>
+<p>It seems worthwhile folding beam search into our models. One option is to maybe create a mix-in class to add the beam search functionality.</p>
+    </div>
+    <hr/>
+    <footer>
+      <ul class="list-inline">
+        <li class="list-inline-item text-muted" title="2018-04-23T16:32:23.988089+01:00">
+          <i class="fa fa-clock-o"></i>
+          Mon 23 April 2018
+        </li>
+        <li class="list-inline-item">
+          <i class="fa fa-folder-open-o"></i>
+          <a href="https://benhoyle.github.io/category/title-generation.html">Title Generation</a>
+        </li>
+          <li class="list-inline-item">
+            <i class="fa fa-user-o"></i>
+              <a href="https://benhoyle.github.io/author/ben-hoyle.html">Ben Hoyle</a>          </li>
+          <li class="list-inline-item">
+            <i class="fa fa-files-o"></i>
+              <a href="https://benhoyle.github.io/tag/improving_results.html">#improving_results</a>          </li>
+      </ul>
+    </footer>
+  </article>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+<div class="row">
+  <p class="col-sm-6 text-sm-left">
+    <a href="https://www.linkedin.com/in/benhoyle/" class="text-muted" target="_blank">Ben Hoyle</a> - <a href="https://twitter.com/bjh_ip" ><i class="fab fa-twitter"></i></a>
+  </p>
+  <p class="col-sm-6 text-sm-right text-muted">
+    Generated by <a href="https://github.com/getpelican/pelican" class="text-muted" target="_blank">Pelican</a>
+    / <a href="https://github.com/nairobilug/pelican-alchemy" class="text-muted" target="_blank">Adapted from &#x2728;</a>
+  </p>
+</div>    </div>
+  </footer>
+</body>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script>
+$( document ).ready(function() {
+    $('table').addClass('table table-bordered');
+    $('tbody').addClass('table-striped');
+    $('th').addClass('text-center');
+});
+</script></html>

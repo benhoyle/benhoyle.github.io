@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <!-- Required meta tags -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <title>  4B. Title Generation - Developing the Model - Attention | Practical Machine Learning Adventures
+</title>
+  <link rel="canonical" href="https://benhoyle.github.io/part-4b-title-generation-developing-the-model-attention.html">
+
+
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.9/css/all.css" integrity="sha384-5SOiIsAziJl6AWe0HWRKTXlfcSHKmYV4RBF18PPJ173Kzn7jzMyFuTtk8JA7QQG1" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/pygments/default.min.css">
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/theme.css">
+
+  <link rel="alternate" type="application/atom+xml" title="Full Atom Feed"
+        href="https://benhoyle.github.io/feeds/all.atom.xml">
+  <link rel="alternate" type="application/atom+xml" title="Categories Atom Feed"
+        href="https://benhoyle.github.io/feeds/title-generation.atom.xml">  
+  <meta name="description" content="This post looks at developing our initial models to include state of the art features to improve results.">
+  <script>
+    (function(i, s, o, g, r, a, m) {
+      i['GoogleAnalyticsObject'] = r;
+      i[r] = i[r] || function() {
+        (i[r].q = i[r].q || []).push(arguments)
+      }, i[r].l = 1 * new Date();
+      a = s.createElement(o);
+      a.async = 1;
+      a.src = g;
+      m = s.getElementsByTagName(o)[0];
+      m.parentNode.insertBefore(a, m)
+    })(window, document, 'script', 'https://www.google-analytics.com/analytics.js', 'ga');
+    ga('create', 'UA-96290248-2', 'auto');
+    ga('send', 'pageview');
+  </script>
+
+
+</head>
+
+<body>
+  <header class="header">
+    <div class="container">
+<div class="row">
+  <div class="col-sm-12">
+    <h1 class="title"><a href="https://benhoyle.github.io/">Practical Machine Learning Adventures</a></h1>
+      <p class="text-muted">A selection of machine learning projects</p>
+  </div>
+</div>    </div>
+  </header>
+
+  <div class="main">
+    <div class="container">
+  <article class="article">
+    <div class="content">
+      <h1>Attention</h1>
+<p>It is widely agreed that a good starting point for a sequence-to-sequence model is a recurrent neural network and attention. In this post we'll look at applying attention to our current models.</p>
+<p>This <a href="https://github.com/philipperemy/keras-attention-mechanism">Github repository</a> by Philippe Rémy contains a great walk through for applying attention in Keras.</p>
+<p><img alt="attention_png" src="https://raw.githubusercontent.com/philipperemy/keras-attention-mechanism/master/assets/graph_multi_attention.png"></p>
+<p>Attention, as applied by Philippe, is fairly straightforward to implement in Keras. </p>
+<p>The process is as follows:</p>
+<ul>
+<li>An input is provided in with the dimensions: BS (batch_size), TS (time_steps), and I (input_dimension). I represents the length of each time step, e.g. if we had a one-hot vector with a length equal to a vocabulary size of 2500, I would be 2500. Time steps are the same as our sequence elements, e.g. if a sequence has a length of 22, time steps = 22. Batch size is the size used to group samples, e.g. for training.</li>
+<li>This is followed by a <a href="https://keras.io/layers/core/#permute">Permute</a> operation. This swaps around the first and second dimensions (excluding the batch size). So you have (batch_size, input_dim, time_steps). For example, if we had (None, 22, 2500) this would be swapped to (None, 2500, 22). </li>
+<li>As stated in the code the Reshape line is just for housekeeping - the array is aleady switched to being input_dim, time_steps. We might remove this line in our code.</li>
+<li>We then generate a dense layer, which is just a matrix multiplication with an output of size TS. This gives us a vector the same size as the number of our timesteps. Softmax is applied on the output to normalise as a probability (e.g. values are from 0-1 and sum to 1).</li>
+<li>If a single attention vector is required the mean over all dimensions is taken - a single dimension vector may be useful as a simplification when visualising. We could also take the sum over the timesteps following the multiply operation.</li>
+<li>Some more housekeeping is then performed to again switch around the first and second dimensions (i.e. switch back to the original form).</li>
+<li>Finally we perform a matrix multiplication using our obtained attention vector (a_probs) on the inputs. We then output the result of the multiplication, which is the application of the attention.</li>
+</ul>
+<p>Our attention weights are thus stored as parameters of the Dense layer.</p>
+<p>The attention weights can be applied before or after our recurrent neural network (in our initial models an LSTM). When applying our weights after the LSTM we need to flatten the output to get a vector.</p>
+<h3>Loading our Data (Again)</h3>
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">pickle</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="n">PIK</span> <span class="o">=</span> <span class="s2">&quot;claim_and_title.data&quot;</span>
+
+<span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">PIK</span><span class="p">):</span>
+    <span class="c1"># Download file</span>
+    <span class="err">!</span><span class="n">wget</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">benhoyle</span><span class="o">.</span><span class="n">github</span><span class="o">.</span><span class="n">io</span><span class="o">/</span><span class="n">notebooks</span><span class="o">/</span><span class="n">title_generation</span><span class="o">/</span><span class="n">claim_and_title</span><span class="o">.</span><span class="n">data</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">PIK</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Loading data&quot;</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;{0} samples loaded&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)))</span>
+
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">Adding start and stop tokens to output&quot;</span><span class="p">)</span>
+<span class="n">data</span> <span class="o">=</span> <span class="p">[(</span><span class="n">c</span><span class="p">,</span> <span class="s2">&quot;startseq {0} stopseq&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">t</span><span class="p">))</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">An example title:&quot;</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;----&quot;</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;An example claim:&quot;</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>Loading data
+30000 samples loaded
+
+
+Adding start and stop tokens to output
+
+
+An example title: startseq System and method for session restoration at geo-redundant gateways stopseq
+----
+An example claim: 
+1. A method for managing a backup service gateway (SGW) associated with a primary SGW, the method comprising:
+periodically receiving from the primary SGW at least a portion of corresponding UE session state information, the received portion of session state information being sufficient to enable the backup SGW to indicate to an inquiring management entity that UEs having an active session supported by the primary SGW are in a live state; and
+in response to a failure of the primary SGW, the backup SGW assuming management of IP addresses and paths associated with said primary SGW and transmitting a Downlink Data Notification (DDN) toward a Mobility Management Entity (MME) for each of said UEs having an active session supported by the failed primary SGW to detach from the network and reattach to the network, wherein each DDN causes the MME to send a detach request with a reattach request code to the respective UE.
+</pre></div>
+
+
+<h2>Applying to Ludwig Model with Shared Embedding</h2>
+<p>We will look to apply attention to our best current model: the Ludwig model with shared GloVe embeddings. We will apply our attention mechanism after the application of the encoder and decoder LSTMs. This effectively weights the output of the encoding over the two sequences (each encoder/decoder sequence has its own attention vector). We'll import the <a href="https://benhoyle.github.io/notebooks/title_generation/ludwig_model.py">Ludwig Model class</a>, create a new class and then overwrite the build_model method. </p>
+<p>We need to remember to amend the definition of the LSTM such that sequences are returned. This then enables the correct dimensionality of input for our attention layer. </p>
+<p>This <a href="https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/">post</a> explains the general functioning of the LSTM cell in Keras and the return of sequences and hidden states.</p>
+<p>This <a href="https://medium.com/datalogue/attention-in-keras-1892773a4f22">post</a> explains attention.</p>
+<p>Some things to note:</p>
+<ul>
+<li>Some posts and text books refer to the output of an LSTM as <code>y</code>, others as <code>h</code>. The hidden state is also sometimes referred to as <code>h</code> (e.g. when used with <code>y</code>) and at other times <code>c</code> (e.g. with <code>h</code>). </li>
+<li>Some posts also refer to the output of an LSTM as the last output following an input series of timesteps. This is equivalent to the output of the Keras LSTM if <code>return_sequences=False</code>. To apply attention we need the output of the LSTM for each timestep (i.e. we need to set <code>return_sequences=True</code>.</li>
+</ul>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">ludwig_model</span> <span class="kn">import</span> <span class="n">LudwigModel</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="o">/</span><span class="n">home</span><span class="o">/</span><span class="n">ben</span><span class="o">/</span><span class="n">anaconda3</span><span class="o">/</span><span class="n">envs</span><span class="o">/</span><span class="n">tf_gpu_source</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">python3</span><span class="o">.</span><span class="mi">6</span><span class="o">/</span><span class="n">site</span><span class="o">-</span><span class="n">packages</span><span class="o">/</span><span class="n">h5py</span><span class="o">/</span><span class="fm">__init__</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">36</span><span class="p">:</span> <span class="ne">FutureWarning</span><span class="p">:</span> <span class="n">Conversion</span> <span class="n">of</span> <span class="n">the</span> <span class="n">second</span> <span class="n">argument</span> <span class="n">of</span> <span class="n">issubdtype</span> <span class="kn">from</span> <span class="sb">`float`</span> <span class="n">to</span> <span class="sb">`np.floating`</span> <span class="ow">is</span> <span class="n">deprecated</span><span class="o">.</span> <span class="n">In</span> <span class="n">future</span><span class="p">,</span> <span class="n">it</span> <span class="n">will</span> <span class="n">be</span> <span class="n">treated</span> <span class="k">as</span> <span class="sb">`np.float64 == np.dtype(float).type`</span><span class="o">.</span>
+  <span class="kn">from</span> <span class="nn">._conv</span> <span class="kn">import</span> <span class="n">register_converters</span> <span class="k">as</span> <span class="n">_register_converters</span>
+<span class="n">Using</span> <span class="n">TensorFlow</span> <span class="n">backend</span><span class="o">.</span>
+</pre></div>
+
+
+<h2>How this Attention Mechanism Works</h2>
+<p>Let's start by considering one sample. We can effectively ignore the first batch size (BS) dimension (0) in our code.</p>
+<p>The attention mechanism set out below starts with an input from an encoding LSTM. As return sequences is true, the encoding LSTM outputs an array of length time steps (TS), where each time step has an associated encoding vector (I or h or y). In our case, we have an LSTM with a latent dimension of 128, which outputs encoding vectors of length 128 for each time step. Our Keras LSTM output for each sample is thus a matrix of size (300, 128), i.e. 300 timesteps each having a vector of length 128.</p>
+<p>A normal Dense layer takes an input vector and maps it to an output vector, e.g. X &gt; Y where X is length L1 and Y is length L2. If we pass a matrix to a Dense layer, e.g. 500 samples of X - of size (500, L1) we would get a matrix of (500, L2) out. This is the same if we are doing things in batches - then dense layer is still applied to the last dimension (e.g. still L1&gt;L2 even if we had batches of 64, e.g. input - (64, 500, L1).</p>
+<p>When we permute, we swap around our sample. So we have a sample that is the timestep data for each feature (e.g. as how each hidden dimension changes over the timesteps). E.g. <code>[ft1, ft2, ft3 ... fT]</code> where T = 300 or 22 for the encoder and the decoder. The output of the dense layer is a (pseudo-) probability across the 300 or 22 time steps. I.e. a weighting for each time step for the feature. This is repeated for each feature so we have F_1=<code>[w1, w2, ... wT]</code>, F_2=..., F_latent_dim = <code>[...]</code> - i.e. 128 features with weights for 300 or 22 time steps (128, 300/22). We then swap the matrix around again, so our weights are arranged in timestep order, e.g. T_1=<code>[w_f1, w_f2, ..., w_f_latent_dim]</code> where each column / vector will sum to 1. This gives us a matrix of (300/22, 128).</p>
+<p>The later Mulitply operation multiplies these weights against the original LSTM encoding.</p>
+<p>In descriptions of attention we have a context vector that, for a output timestamp, is the weighted sum of the attention weights and the original encoding. Each encoding (h) has a weight (a).</p>
+<p>Our issue is that the output of our Multiply operation is a matrix of (128, 22) (as we are applying weights to each individual dimension of the encoding). We need to reduce this down to a vector. The matrix has weighted terms for each latent dimension and each timestamp. We could simplify this by only having one weight term per timestamp in the earlier calculations. In our case, we will use the fact that attention is normally calculated as the sum of the attention weights and the encoded context vectors, as such we can take the sum of our weighted data (e.g. the output of our multiply step) across the timesteps. </p>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">keras.models</span> <span class="kn">import</span> <span class="n">Model</span>
+<span class="kn">from</span> <span class="nn">keras.layers</span> <span class="kn">import</span> <span class="n">Input</span><span class="p">,</span> <span class="n">LSTM</span><span class="p">,</span> <span class="n">Dense</span><span class="p">,</span> <span class="n">Embedding</span><span class="p">,</span> <span class="n">concatenate</span><span class="p">,</span> <span class="n">merge</span><span class="p">,</span> <span class="n">Permute</span><span class="p">,</span> <span class="n">Reshape</span><span class="p">,</span> \
+<span class="n">Flatten</span><span class="p">,</span> <span class="n">multiply</span><span class="p">,</span> <span class="n">AveragePooling1D</span><span class="p">,</span> <span class="n">RepeatVector</span><span class="p">,</span> <span class="n">Lambda</span>
+<span class="kn">from</span> <span class="nn">keras</span> <span class="kn">import</span> <span class="n">backend</span> <span class="k">as</span> <span class="n">K</span>
+
+<span class="k">class</span> <span class="nc">LWAtt</span><span class="p">(</span><span class="n">LudwigModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Version of our Ludwig model with attention.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_build_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Build the model. &quot;&quot;&quot;</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Building model&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_load_shared_embedding</span><span class="p">()</span>
+        <span class="c1"># Define inputs</span>
+        <span class="n">inputs_encoder</span> <span class="o">=</span> <span class="n">Input</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">encoder_seq_length</span><span class="p">,))</span>
+        <span class="n">inputs_decoder</span> <span class="o">=</span> <span class="n">Input</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">decoder_seq_length</span><span class="p">,))</span>
+
+        <span class="c1"># Define Shared Embedding Layer</span>
+        <span class="n">Shared_Embedding</span> <span class="o">=</span> <span class="n">Embedding</span><span class="p">(</span>
+            <span class="n">output_dim</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">word_embedding_size</span><span class="p">,</span>
+            <span class="n">input_dim</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">num_encoder_tokens</span><span class="p">,</span>
+            <span class="n">weights</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">embedding_matrix</span><span class="p">]</span>   
+        <span class="p">)</span>
+        <span class="c1"># Ah our problem is that our shared embedding has encoder length but we are also using on decoder</span>
+
+        <span class="n">embedded_inputs_encoder</span> <span class="o">=</span> <span class="n">Shared_Embedding</span><span class="p">(</span><span class="n">inputs_encoder</span><span class="p">)</span>
+        <span class="n">embedded_inputs_decoder</span> <span class="o">=</span> <span class="n">Shared_Embedding</span><span class="p">(</span><span class="n">inputs_decoder</span><span class="p">)</span>
+
+        <span class="c1"># Define LSTMs - these return output state h for each timestep (as we have r_s=True)</span>
+        <span class="n">encoder_LSTM</span> <span class="o">=</span> <span class="n">LSTM</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">latent_dim</span><span class="p">,</span> <span class="n">return_sequences</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">decoder_LSTM</span> <span class="o">=</span> <span class="n">LSTM</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">latent_dim</span><span class="p">,</span> <span class="n">return_sequences</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="c1"># So output of this is, e.g. BS, 300, 128, i.e. an h vector for each TS</span>
+        <span class="n">encoder_context</span> <span class="o">=</span> <span class="n">encoder_LSTM</span><span class="p">(</span><span class="n">embedded_inputs_encoder</span><span class="p">)</span>
+
+        <span class="c1"># Add attention to encoder encodings - here we are swapping the dims to BS, 128, 300</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">Permute</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">))(</span><span class="n">encoder_context</span><span class="p">)</span>
+        <span class="c1"># Here we apply a dense layer to each a matrix</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">Dense</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">encoder_seq_length</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="s1">&#39;softmax&#39;</span><span class="p">,</span> <span class="n">use_bias</span><span class="o">=</span><span class="bp">False</span><span class="p">)(</span><span class="n">a</span><span class="p">)</span>
+        <span class="c1"># Single attention vector</span>
+        <span class="n">a_probs</span> <span class="o">=</span> <span class="n">Permute</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;attention_vec_a&#39;</span><span class="p">)(</span><span class="n">a</span><span class="p">)</span>
+        <span class="n">att_mul_1</span> <span class="o">=</span> <span class="n">multiply</span><span class="p">([</span><span class="n">encoder_context</span><span class="p">,</span> <span class="n">a_probs</span><span class="p">])</span> 
+        <span class="c1"># Sum over time dimension</span>
+        <span class="n">att_mul_1</span> <span class="o">=</span> <span class="n">Lambda</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">K</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;sum_over_time_att_1&quot;</span><span class="p">)(</span><span class="n">att_mul_1</span><span class="p">)</span>
+        <span class="c1"># summary input model</span>
+        <span class="n">decoder_context</span> <span class="o">=</span> <span class="n">decoder_LSTM</span><span class="p">(</span><span class="n">embedded_inputs_decoder</span><span class="p">)</span>
+         <span class="c1"># Add attention to answer encodings</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">Permute</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">))(</span><span class="n">decoder_context</span><span class="p">)</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">Dense</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">decoder_seq_length</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="s1">&#39;softmax&#39;</span><span class="p">)(</span><span class="n">b</span><span class="p">)</span>
+        <span class="c1"># Single attention vector</span>
+        <span class="n">b_probs</span> <span class="o">=</span> <span class="n">Permute</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;attention_vec_b&#39;</span><span class="p">)(</span><span class="n">b</span><span class="p">)</span>
+        <span class="n">att_mul_2</span> <span class="o">=</span> <span class="n">multiply</span><span class="p">([</span><span class="n">decoder_context</span><span class="p">,</span> <span class="n">b_probs</span><span class="p">])</span>
+        <span class="c1"># Sum over timesteps</span>
+        <span class="n">att_mul_2</span> <span class="o">=</span> <span class="n">Lambda</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">K</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;sum_over_time_att_2&quot;</span><span class="p">)(</span><span class="n">att_mul_2</span><span class="p">)</span> 
+        <span class="c1"># decoder output model</span>
+        <span class="n">decoder1</span> <span class="o">=</span> <span class="n">concatenate</span><span class="p">([</span><span class="n">att_mul_1</span><span class="p">,</span> <span class="n">att_mul_2</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">outputs</span> <span class="o">=</span> <span class="n">Dense</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_decoder_tokens</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="s1">&#39;softmax&#39;</span><span class="p">)(</span><span class="n">decoder1</span><span class="p">)</span>
+        <span class="c1"># tie it together [article, summary] [word]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">Model</span><span class="p">(</span><span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="n">inputs_encoder</span><span class="p">,</span> <span class="n">inputs_decoder</span><span class="p">],</span> <span class="n">outputs</span><span class="o">=</span><span class="n">outputs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">infdec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Compiling model&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">loss</span><span class="o">=</span><span class="s1">&#39;categorical_crossentropy&#39;</span><span class="p">,</span> <span class="n">optimizer</span><span class="o">=</span><span class="s1">&#39;adam&#39;</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">machine</span> <span class="o">=</span> <span class="n">LWAtt</span><span class="p">(</span>
+    <span class="n">encoder_texts</span><span class="o">=</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">],</span>
+    <span class="n">decoder_texts</span><span class="o">=</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">],</span>
+    <span class="n">encoder_seq_length</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
+    <span class="n">decoder_seq_length</span><span class="o">=</span><span class="mi">22</span><span class="p">,</span>
+    <span class="n">num_encoder_tokens</span><span class="o">=</span><span class="mi">2500</span><span class="p">,</span>
+    <span class="n">num_decoder_tokens</span><span class="o">=</span><span class="mi">2500</span><span class="p">,</span>
+    <span class="n">latent_dim</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">weights_file</span><span class="o">=</span><span class="s2">&quot;class_LWattmodel_sin_att.hdf5&quot;</span><span class="p">,</span>
+    <span class="n">training_set_size</span><span class="o">=</span><span class="mi">250</span>
+<span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">Fitting</span> <span class="n">tokenizers</span>
+<span class="n">Our</span> <span class="n">input</span> <span class="n">data</span> <span class="k">has</span> <span class="nb">shape</span> (<span class="mi">30000</span>, <span class="mi">300</span>) <span class="o">and</span> <span class="k">our</span> <span class="n">output</span> <span class="n">data</span> <span class="k">has</span> <span class="nb">shape</span> (<span class="mi">30000</span>, <span class="mi">22</span>)
+<span class="n">Generating</span> <span class="n">training</span> <span class="o">and</span> <span class="n">test</span> <span class="n">data</span>
+<span class="n">Building</span> <span class="n">model</span>
+<span class="n">Loading</span> <span class="n">GloVe</span> <span class="mi">100</span><span class="n">d</span> <span class="n">embeddings</span> <span class="nb">from</span> <span class="n">file</span>
+<span class="n">Found</span> <span class="mi">400000</span> <span class="n">word</span> <span class="n">vectors</span>.
+<span class="n">Building</span> <span class="n">embedding</span> <span class="n">matrix</span>
+<span class="n">Compiling</span> <span class="n">model</span>
+<span class="n">No</span> <span class="n">existing</span> <span class="n">weights</span> <span class="n">found</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">machine</span><span class="o">.</span><span class="k">print</span><span class="p">()</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>Training Model:
+
+__________________________________________________________________________________________________
+Layer (type)                    Output Shape         Param #     Connected to                     
+==================================================================================================
+input_1 (InputLayer)            (None, 300)          0                                            
+__________________________________________________________________________________________________
+input_2 (InputLayer)            (None, 22)           0                                            
+__________________________________________________________________________________________________
+embedding_1 (Embedding)         multiple             250000      input_1[0][0]                    
+                                                                 input_2[0][0]                    
+__________________________________________________________________________________________________
+lstm_1 (LSTM)                   (None, 300, 128)     117248      embedding_1[0][0]                
+__________________________________________________________________________________________________
+lstm_2 (LSTM)                   (None, 22, 128)      117248      embedding_1[1][0]                
+__________________________________________________________________________________________________
+permute_1 (Permute)             (None, 128, 300)     0           lstm_1[0][0]                     
+__________________________________________________________________________________________________
+permute_2 (Permute)             (None, 128, 22)      0           lstm_2[0][0]                     
+__________________________________________________________________________________________________
+dense_1 (Dense)                 (None, 128, 300)     90000       permute_1[0][0]                  
+__________________________________________________________________________________________________
+dense_2 (Dense)                 (None, 128, 22)      506         permute_2[0][0]                  
+__________________________________________________________________________________________________
+attention_vec_a (Permute)       (None, 300, 128)     0           dense_1[0][0]                    
+__________________________________________________________________________________________________
+attention_vec_b (Permute)       (None, 22, 128)      0           dense_2[0][0]                    
+__________________________________________________________________________________________________
+multiply_1 (Multiply)           (None, 300, 128)     0           lstm_1[0][0]                     
+                                                                 attention_vec_a[0][0]            
+__________________________________________________________________________________________________
+multiply_2 (Multiply)           (None, 22, 128)      0           lstm_2[0][0]                     
+                                                                 attention_vec_b[0][0]            
+__________________________________________________________________________________________________
+sum_over_time_att_1 (Lambda)    (None, 128)          0           multiply_1[0][0]                 
+__________________________________________________________________________________________________
+sum_over_time_att_2 (Lambda)    (None, 128)          0           multiply_2[0][0]                 
+__________________________________________________________________________________________________
+concatenate_1 (Concatenate)     (None, 256)          0           sum_over_time_att_1[0][0]        
+                                                                 sum_over_time_att_2[0][0]        
+__________________________________________________________________________________________________
+dense_3 (Dense)                 (None, 2500)         642500      concatenate_1[0][0]              
+==================================================================================================
+Total params: 1,217,502
+Trainable params: 1,217,502
+Non-trainable params: 0
+__________________________________________________________________________________________________
+None
+</pre></div>
+
+
+<p>We have the same number of parameters. However, this time our 128 LSTM outputs have been subject to the attention weighting.</p>
+<p>cf:</p>
+<div class="highlight"><pre><span></span>__________________________________________________________________________________________________
+Layer (type)                    Output Shape         Param #     Connected to                     
+==================================================================================================
+input_1 (InputLayer)            (None, 300)          0                                            
+__________________________________________________________________________________________________
+input_2 (InputLayer)            (None, 22)           0                                            
+__________________________________________________________________________________________________
+embedding_1 (Embedding)         (None, 300, 100)     250000      input_1[0][0]                    
+                                                                 input_2[0][0]                    
+__________________________________________________________________________________________________
+lstm_1 (LSTM)                   (None, 128)          117248      embedding_1[0][0]                
+__________________________________________________________________________________________________
+lstm_2 (LSTM)                   (None, 128)          117248      embedding_1[1][0]                
+__________________________________________________________________________________________________
+concatenate_1 (Concatenate)     (None, 256)          0           lstm_1[0][0]                     
+                                                                 lstm_2[0][0]                     
+__________________________________________________________________________________________________
+dense_1 (Dense)                 (None, 2500)         642500      concatenate_1[0][0]              
+==================================================================================================
+Total params: 1,126,996
+Trainable params: 1,126,996
+Non-trainable params: 0
+__________________________________________________________________________________________________
+None
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">keras.utils.vis_utils</span> <span class="kn">import</span> <span class="n">model_to_dot</span>
+<span class="kn">from</span> <span class="nn">IPython.display</span> <span class="kn">import</span> <span class="n">Image</span>
+<span class="n">Image</span><span class="p">(</span><span class="n">model_to_dot</span><span class="p">(</span><span class="n">machine</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">show_shapes</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span><span class="o">.</span><span class="n">create_png</span><span class="p">(</span><span class="n">prog</span><span class="o">=</span><span class="s1">&#39;dot&#39;</span><span class="p">))</span>
+</pre></div>
+
+
+<p><img alt="png" src="https://benhoyle.github.io/images/TG_4B_output_16_0.png"></p>
+<div class="highlight"><pre><span></span><span class="n">machine</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">epochs</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>Training for epoch 0
+Training on batch 0 to 250 of 24000
+Train on 2639 samples, validate on 655 samples
+Epoch 1/1
+2639/2639 [==============================] - 114s 43ms/step - loss: 3.7594 - val_loss: 3.4036
+Training on batch 250 to 500 of 24000
+Train on 2484 samples, validate on 658 samples
+Epoch 1/1
+2484/2484 [==============================] - 100s 40ms/step - loss: 3.3319 - val_loss: 3.2739
+Training on batch 500 to 750 of 24000
+
+Training on batch 23500 to 23750 of 24000
+Train on 2373 samples, validate on 637 samples
+Epoch 1/1
+2373/2373 [==============================] - 79s 33ms/step - loss: 2.4597 - val_loss: 2.4743
+Training on batch 23750 to 24000 of 24000
+Train on 2593 samples, validate on 590 samples
+Epoch 1/1
+2593/2593 [==============================] - 86s 33ms/step - loss: 2.4561 - val_loss: 2.5036
+------------------------------------------
+Sample of claim text: 1 a stylus comprising a first end configured for contact with a capacitive touchscreen a second end opposite the first end and a housing comprising an arrangement of two or more materials that each ha
+
+Predicted title is: method and apparatus for determining a touch screen  
+Actual title is: stylus devices having variable electrical characteristics for capacitive  
+---
+Sample of claim text: 1 a method comprising receiving at a first computer system associated with a first entity a transaction authorization request that specifies an amount to a receiving party and that specifies a first f
+
+Predicted title is: method and system for managing a network  
+Actual title is: allocating partial payment of a transaction amount using an allocation rule  
+---
+Sample of claim text: 1 a method for analyzing with a temporal resolution below at least one response of a test person to at least one input comprising providing a computer server having a processor a memory and a computer
+
+Predicted title is: system and method for managing a data  
+Actual title is: method system and computer program for automated of measurements in response to  
+---
+Sample of claim text: 1 a method comprising receiving by a call session control function device a request to set up a communication session the request being associated with a particular user equipment device determining b
+
+Predicted title is: method and apparatus for providing a network  
+Actual title is: selection of a policy and charging rules function device  
+---
+Sample of claim text: 1 a secure identification and identity registration system comprising copying means j for making a digital copy of an identity document k belonging to the user to be identified at least one server a f
+
+Predicted title is: method and system for providing a web service  
+Actual title is: secure system and process for identification and identity registration  
+---
+Training for epoch 1
+Training on batch 0 to 250 of 24000
+Train on 2639 samples, validate on 655 samples
+Epoch 1/1
+2639/2639 [==============================] - 87s 33ms/step - loss: 2.5527 - val_loss: 2.4565
+Training on batch 250 to 500 of 24000
+Train on 2484 samples, validate on 658 samples
+Epoch 1/1
+2484/2484 [==============================] - 82s 33ms/step - loss: 2.3472 - val_loss: 2.4692
+Training on batch 500 to 750 of 24000
+Train on 2586 samples, validate on 583 samples
+Epoch 1/1
+2586/2586 [==============================] - 85s 33ms/step - loss: 2.5075 - val_loss: 2.6221
+
+....and so on and on and on...
+
+Training on batch 23500 to 23750 of 24000
+Train on 2373 samples, validate on 637 samples
+Epoch 1/1
+2373/2373 [==============================] - 81s 34ms/step - loss: 2.2022 - val_loss: 2.4022
+Training on batch 23750 to 24000 of 24000
+Train on 2593 samples, validate on 590 samples
+Epoch 1/1
+2593/2593 [==============================] - 88s 34ms/step - loss: 2.2375 - val_loss: 2.3999
+------------------------------------------
+Sample of claim text: 1 a computer implemented method for ranking and grouping comprising a receiving information about types of for a from a database b ranking the types of based on predetermined criteria c grouping the r
+
+Predicted title is: method and system for generating a data  
+Actual title is: and tool  
+---
+Sample of claim text: advertisement is associated with the products or services provided by a third party receiving via a user interface associated with a shopping website a selection of products or services by one or more
+
+Predicted title is: method and system for providing a user interface  
+Actual title is: for digital multimedia capture using control cloud voice digital multimedia and advertising and sell products or services via cloud gaming environments  
+---
+Sample of claim text: 1 a computer implemented method of estimating one or more of parameters surface shape and index of represented in a image having one or more known illumination directions and a single known viewing di
+
+Predicted title is: method and apparatus for detecting a 3d image  
+Actual title is: illumination spectrum recovery  
+---
+Sample of claim text: 1 a website comprising a processor and a computer readable storage medium comprising program code executable by the processor the program code comprising an display component configured to display an
+
+Predicted title is: method and system for providing content in a media  
+Actual title is: for website and website menu  
+---
+Sample of claim text: 1 a computer implemented method executed by one or more processors the method comprising storing by the one or more processors a content item in computer readable memory the content item being to one
+
+Predicted title is: method and system for providing content in a web page  
+Actual title is: identifying shared content stored by a service  
+---
+</pre></div>
+
+
+<p><img alt="png" src="https://benhoyle.github.io/images/TG_4B_output_17_1.png"></p>
+<div class="highlight"><pre><span></span><span class="n">machine</span><span class="o">.</span><span class="n">example_output</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>------------------------------------------
+Sample of claim text: 1 an image encoding system including one or more processing devices comprising an being at least one of the one or more processing devices configured to perform prediction on a current block included
+
+Predicted title is: image processing apparatus and method for controlling the same  
+Actual title is: random access image encoding system and method  
+---
+Sample of claim text: 1 a method of and data transfer between a controller device and a target device using a control signal comprising the transfer of a data word over a data bus from the target device to the controller d
+
+Predicted title is: method and apparatus for controlling a memory device  
+Actual title is: method for transferring address information  
+---
+Sample of claim text: coupled to the host computer wherein each of the first storage system and the second storage system comprises a plurality of storage devices configuring a plurality of raid redundant array of groups o
+
+Predicted title is: system and method for managing data in a storage system  
+Actual title is: storage system comprising function for reducing power consumption  
+---
+Sample of claim text: 1 a data processing apparatus comprising a network interface capable of coupling to a network a plurality of printer each configured to convert data to a form that is specific to one or more compatibl
+
+Predicted title is: method and apparatus for providing a image  
+Actual title is: print server  
+---
+Sample of claim text: 1 a network communication system for communicating with software applications through a proxy server and a firewall the network communication system comprising an electronic device to i transfer a uni
+
+Predicted title is: method and system for providing a network  
+Actual title is: wireless internet product system  
+---
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>------------------------------------------
+Sample of claim text: 1 a computer implemented method for ranking and grouping comprising a receiving information about types of for a from a database b ranking the types of based on predetermined criteria c grouping the r
+
+Predicted title is: method and system for generating a data  
+Actual title is: and tool  
+---
+Sample of claim text: advertisement is associated with the products or services provided by a third party receiving via a user interface associated with a shopping website a selection of products or services by one or more
+
+Predicted title is: method and system for providing a user interface  
+Actual title is: for digital multimedia capture using control cloud voice digital multimedia and advertising and sell products or services via cloud gaming environments  
+---
+Sample of claim text: 1 a computer implemented method of estimating one or more of parameters surface shape and index of represented in a image having one or more known illumination directions and a single known viewing di
+
+Predicted title is: method and apparatus for detecting a 3d image  
+Actual title is: illumination spectrum recovery  
+---
+Sample of claim text: 1 a website comprising a processor and a computer readable storage medium comprising program code executable by the processor the program code comprising an display component configured to display an 
+
+Predicted title is: method and system for providing content in a media  
+Actual title is: for website and website menu  
+---
+Sample of claim text: 1 a computer implemented method executed by one or more processors the method comprising storing by the one or more processors a content item in computer readable memory the content item being to one 
+
+Predicted title is: method and system for providing content in a web page  
+Actual title is: identifying shared content stored by a service  
+---
+</pre></div>
+
+
+<h3>Comments on Training</h3>
+<p>This performance seems pretty good. We are getting titles that appear to make grammatical sense and the model has picked up on the dominant models of title form, with some variation.</p>
+<p>It would be good to visualise our attention mechanism to see if it is working as expected.</p>
+<p>The training and test loss start to diverge around 250 iterations. Then the model starts overfitting on the training data. We could probably do with some regularisation to prevent overfitting and keep the test loss in sync with the training loss.</p>
+<p>We also need to set up the save weights so it only saves in the test loss has not increased by a margin.</p>
+<p>There is also no explicit non-linearity in the model. </p>
+<p><strong><em> A big caveat is that I am still not sure that this implementation of attention works in the way it is meant to work. A todo would be to implement a lower level attention model that builds a custom Keras layer. It would also be good to build a visualiser for the attention vector. But that is too much work for this little project...</em></strong></p>
+<hr>
+<h2>Regularisation</h2>
+<p>Let's try with some regularisation using Dropout and L2 regularizer.</p>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">keras.regularizers</span> <span class="kn">import</span> <span class="n">l2</span> <span class="c1"># L2-regularisation</span>
+<span class="n">l2_lambda</span> <span class="o">=</span> <span class="mf">0.01</span>
+
+<span class="k">class</span> <span class="nc">LWAtt_reg</span><span class="p">(</span><span class="n">LudwigModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Version of our Ludwig model with attention.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_build_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Build the model. &quot;&quot;&quot;</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Building model&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_load_shared_embedding</span><span class="p">()</span>
+        <span class="c1"># Define inputs</span>
+        <span class="n">inputs_encoder</span> <span class="o">=</span> <span class="n">Input</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">encoder_seq_length</span><span class="p">,))</span>
+        <span class="n">inputs_decoder</span> <span class="o">=</span> <span class="n">Input</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">decoder_seq_length</span><span class="p">,))</span>
+
+        <span class="c1"># Define Shared Embedding Layer</span>
+        <span class="n">Shared_Embedding</span> <span class="o">=</span> <span class="n">Embedding</span><span class="p">(</span>
+            <span class="n">output_dim</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">word_embedding_size</span><span class="p">,</span>
+            <span class="n">input_dim</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">num_encoder_tokens</span><span class="p">,</span>
+            <span class="n">weights</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">embedding_matrix</span><span class="p">]</span>   
+        <span class="p">)</span>
+        <span class="c1"># Ah our problem is that our shared embedding has encoder length but we are also using on decoder</span>
+
+        <span class="n">embedded_inputs_encoder</span> <span class="o">=</span> <span class="n">Shared_Embedding</span><span class="p">(</span><span class="n">inputs_encoder</span><span class="p">)</span>
+        <span class="n">embedded_inputs_decoder</span> <span class="o">=</span> <span class="n">Shared_Embedding</span><span class="p">(</span><span class="n">inputs_decoder</span><span class="p">)</span>
+
+        <span class="c1"># Define LSTMs - these return output state h for each timestep (as we have r_s=True)</span>
+        <span class="n">encoder_LSTM</span> <span class="o">=</span> <span class="n">LSTM</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">latent_dim</span><span class="p">,</span> <span class="n">return_sequences</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">recurrent_dropout</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+        <span class="n">decoder_LSTM</span> <span class="o">=</span> <span class="n">LSTM</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">latent_dim</span><span class="p">,</span> <span class="n">return_sequences</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>  <span class="n">dropout</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">recurrent_dropout</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+
+        <span class="c1"># So output of this is, e.g. BS, 300, 128, i.e. an h vector for each TS</span>
+        <span class="n">encoder_context</span> <span class="o">=</span> <span class="n">encoder_LSTM</span><span class="p">(</span><span class="n">embedded_inputs_encoder</span><span class="p">)</span>
+
+        <span class="c1"># Add attention to encoder encodings - here we are swapping the dims to BS, 128, 300</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">Permute</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">))(</span><span class="n">encoder_context</span><span class="p">)</span>
+
+        <span class="n">a</span> <span class="o">=</span> <span class="n">Dense</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">encoder_seq_length</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="s1">&#39;softmax&#39;</span><span class="p">,</span> <span class="n">use_bias</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">kernel_regularizer</span><span class="o">=</span><span class="n">l2</span><span class="p">(</span><span class="n">l2_lambda</span><span class="p">))(</span><span class="n">a</span><span class="p">)</span>
+
+        <span class="n">a_probs</span> <span class="o">=</span> <span class="n">Permute</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;attention_vec_a&#39;</span><span class="p">)(</span><span class="n">a</span><span class="p">)</span>
+        <span class="n">att_mul_1</span> <span class="o">=</span> <span class="n">multiply</span><span class="p">([</span><span class="n">encoder_context</span><span class="p">,</span> <span class="n">a_probs</span><span class="p">])</span>
+
+        <span class="c1"># Sum over time dimension</span>
+        <span class="n">att_mul_1</span> <span class="o">=</span> <span class="n">Lambda</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">K</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;sum_over_time_att_1&quot;</span><span class="p">)(</span><span class="n">att_mul_1</span><span class="p">)</span>
+
+        <span class="n">decoder_context</span> <span class="o">=</span> <span class="n">decoder_LSTM</span><span class="p">(</span><span class="n">embedded_inputs_decoder</span><span class="p">)</span>
+         <span class="c1"># Add attention to answer encodings</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">Permute</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">))(</span><span class="n">decoder_context</span><span class="p">)</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">Dense</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">decoder_seq_length</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="s1">&#39;softmax&#39;</span><span class="p">,</span> <span class="n">use_bias</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">kernel_regularizer</span><span class="o">=</span><span class="n">l2</span><span class="p">(</span><span class="n">l2_lambda</span><span class="p">))(</span><span class="n">b</span><span class="p">)</span>
+
+        <span class="n">b_probs</span> <span class="o">=</span> <span class="n">Permute</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;attention_vec_b&#39;</span><span class="p">)(</span><span class="n">b</span><span class="p">)</span>
+        <span class="n">att_mul_2</span> <span class="o">=</span> <span class="n">multiply</span><span class="p">([</span><span class="n">decoder_context</span><span class="p">,</span> <span class="n">b_probs</span><span class="p">])</span>
+        <span class="n">att_mul_2</span> <span class="o">=</span> <span class="n">Lambda</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">K</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;sum_over_time_att_2&quot;</span><span class="p">)(</span><span class="n">att_mul_2</span><span class="p">)</span>
+
+        <span class="n">decoder1</span> <span class="o">=</span> <span class="n">concatenate</span><span class="p">([</span><span class="n">att_mul_1</span><span class="p">,</span> <span class="n">att_mul_2</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">outputs</span> <span class="o">=</span> <span class="n">Dense</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_decoder_tokens</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="s1">&#39;softmax&#39;</span><span class="p">,</span> <span class="n">kernel_regularizer</span><span class="o">=</span><span class="n">l2</span><span class="p">(</span><span class="n">l2_lambda</span><span class="p">))(</span><span class="n">decoder1</span><span class="p">)</span>
+        <span class="c1"># tie it together [article, summary] [word]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">Model</span><span class="p">(</span><span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="n">inputs_encoder</span><span class="p">,</span> <span class="n">inputs_decoder</span><span class="p">],</span> <span class="n">outputs</span><span class="o">=</span><span class="n">outputs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">infdec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Compiling model&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">loss</span><span class="o">=</span><span class="s1">&#39;categorical_crossentropy&#39;</span><span class="p">,</span> <span class="n">optimizer</span><span class="o">=</span><span class="s1">&#39;adam&#39;</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">reg_machine</span> <span class="o">=</span> <span class="n">LWAtt_reg</span><span class="p">(</span>
+    <span class="n">encoder_texts</span><span class="o">=</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">],</span>
+    <span class="n">decoder_texts</span><span class="o">=</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">],</span>
+    <span class="n">encoder_seq_length</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
+    <span class="n">decoder_seq_length</span><span class="o">=</span><span class="mi">22</span><span class="p">,</span>
+    <span class="n">num_encoder_tokens</span><span class="o">=</span><span class="mi">2500</span><span class="p">,</span>
+    <span class="n">num_decoder_tokens</span><span class="o">=</span><span class="mi">2500</span><span class="p">,</span>
+    <span class="n">latent_dim</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">weights_file</span><span class="o">=</span><span class="s2">&quot;class_LWattmodel_att_reg.hdf5&quot;</span><span class="p">,</span>
+    <span class="n">training_set_size</span><span class="o">=</span><span class="mi">250</span>
+<span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">Fitting</span> <span class="n">tokenizers</span>
+<span class="n">Our</span> <span class="n">input</span> <span class="n">data</span> <span class="k">has</span> <span class="nb">shape</span> (<span class="mi">30000</span>, <span class="mi">300</span>) <span class="o">and</span> <span class="k">our</span> <span class="n">output</span> <span class="n">data</span> <span class="k">has</span> <span class="nb">shape</span> (<span class="mi">30000</span>, <span class="mi">22</span>)
+<span class="n">Generating</span> <span class="n">training</span> <span class="o">and</span> <span class="n">test</span> <span class="n">data</span>
+<span class="n">Building</span> <span class="n">model</span>
+<span class="n">Loading</span> <span class="n">GloVe</span> <span class="mi">100</span><span class="n">d</span> <span class="n">embeddings</span> <span class="nb">from</span> <span class="n">file</span>
+<span class="n">Found</span> <span class="mi">400000</span> <span class="n">word</span> <span class="n">vectors</span>.
+<span class="n">Building</span> <span class="n">embedding</span> <span class="n">matrix</span>
+<span class="n">Compiling</span> <span class="n">model</span>
+<span class="n">No</span> <span class="n">existing</span> <span class="n">weights</span> <span class="n">found</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">reg_machine</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">epochs</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>Training for epoch 0
+Training on batch 0 to 250 of 24000
+Train on 2639 samples, validate on 655 samples
+Epoch 1/1
+2639/2639 [==============================] - 41s 16ms/step - loss: 5.8585 - val_loss: 3.7435
+Training on batch 250 to 500 of 24000
+Train on 2484 samples, validate on 658 samples
+Epoch 1/1
+2484/2484 [==============================] - 39s 16ms/step - loss: 3.5613 - val_loss: 3.4640
+
+Training on batch 23500 to 23750 of 24000
+Train on 2373 samples, validate on 637 samples
+Epoch 1/1
+2373/2373 [==============================] - 38s 16ms/step - loss: 3.1435 - val_loss: 3.0183
+Training on batch 23750 to 24000 of 24000
+Train on 2593 samples, validate on 590 samples
+Epoch 1/1
+2593/2593 [==============================] - 42s 16ms/step - loss: 3.1329 - val_loss: 3.1292
+------------------------------------------
+Sample of claim text: 1 a method for retrieving and viewing in a single web browser instance operating on a user&#39;s computer comprising the sequential steps of from said single web browser a search request to an internet se
+
+Predicted title is: method and method for a a a a a a  
+Actual title is: multi window internet search with webpage  
+---
+Sample of claim text: 1 a rotation amount detecting device for a rotation body comprising a first rotation body provided with a first surface portion being in contact with a sheet being the first rotation body rotating alo
+
+Predicted title is: method and method for a a a a a a a  
+Actual title is: rotation amount detecting device for rotation body length measuring device and image forming apparatus  
+---
+Sample of claim text: 1 a system comprising a control module configured to output a signal a voltage module directly coupled to the control module a complex programmable logic device coupled to the control module for recei
+
+Predicted title is: method and method for a a a a a a  
+Actual title is: system  
+---
+Sample of claim text: 1 a compressed domain compression apparatus comprising a partial decoder that partially an encoded piece of data to generate a partially decoded piece of data a least significant bit plane removal uni
+
+Predicted title is: method and method for a a a a a a  
+Actual title is: compressed domain system and method for compression in encoded data  
+---
+Sample of claim text: 1 a method for correcting in magnetic imaging comprising acquiring at least one artifact calibration scan with a timing that corresponds to that of an actual diagnostic imaging scan acquiring at least
+
+Predicted title is: method and method for a a a a a a  
+Actual title is: correction of in magnetic imaging  
+---
+Training for epoch 1
+Training on batch 0 to 250 of 24000
+Train on 2639 samples, validate on 655 samples
+Epoch 1/1
+2639/2639 [==============================] - 42s 16ms/step - loss: 3.2278 - val_loss: 3.1951
+Training on batch 250 to 500 of 24000
+Train on 2484 samples, validate on 658 samples
+Epoch 1/1
+2484/2484 [==============================] - 40s 16ms/step - loss: 3.0517 - val_loss: 3.1360
+
+...etc etc...note to self, turn off keras output...but it&#39;s so much fun watching our loss....
+
+Training on batch 23500 to 23750 of 24000
+Train on 2373 samples, validate on 637 samples
+Epoch 1/1
+2373/2373 [==============================] - 38s 16ms/step - loss: 3.0335 - val_loss: 3.0485
+Training on batch 23750 to 24000 of 24000
+Train on 2593 samples, validate on 590 samples
+Epoch 1/1
+2593/2593 [==============================] - 42s 16ms/step - loss: 3.0978 - val_loss: 3.1624
+------------------------------------------
+Sample of claim text: 1 a chip adapted in a computer system comprising a computer system environment information monitoring module for monitoring a computer system environment information of the computer system a control c
+
+Predicted title is: method and apparatus for a data  
+Actual title is: chip and computer system  
+---
+Sample of claim text: 1 a method of manufacturing digital display the method comprising manufacturing a plurality of digital display the plurality of display comprising a first display panel having a first size and shape w
+
+Predicted title is: method and apparatus for a data  
+Actual title is: display with different  
+---
+Sample of claim text: 1 a method comprising generating a list of computers that are part of a selected domain wherein the list is automatically with the list of computers by selecting the domain via a job scheduler module
+
+Predicted title is: method and system for a data  
+Actual title is: job scheduler for remote maintenance of servers and  
+---
+Sample of claim text: 1 a computer implemented method for managing device information comprising under control of a computer system configured with executable instructions monitoring by a first sensor of a mobile device mo
+
+Predicted title is: method and apparatus for a data  
+Actual title is: managing information of a user device  
+---
+Sample of claim text: output hardware units and meeting corresponding to said plurality of output hardware units said output hardware unit that performed authentication of the user being to output material saved in the sto
+
+Predicted title is: method and apparatus for a data  
+Actual title is: material output system for outputting meeting material for participant in meeting  
+---
+</pre></div>
+
+
+<p><img alt="png" src="https://benhoyle.github.io/images/TG_4B_output_24_1.png"></p>
+<h3>Comments on Dropout &amp; Regularisation</h3>
+<p>Interesting. </p>
+<p>While adding Dropout and regularisation appears to keep the training and test loss in sync, the model seems to struggle more to find a optima - the loss is higher and the model appears to find a pattern and stick to it (trapped in local minima?).</p>
+<p>I think in this case we will leave regularisation.</p>
+    </div>
+    <hr/>
+    <footer>
+      <ul class="list-inline">
+        <li class="list-inline-item text-muted" title="2018-04-23T16:30:10.634790+01:00">
+          <i class="fa fa-clock-o"></i>
+          Mon 23 April 2018
+        </li>
+        <li class="list-inline-item">
+          <i class="fa fa-folder-open-o"></i>
+          <a href="https://benhoyle.github.io/category/title-generation.html">Title Generation</a>
+        </li>
+          <li class="list-inline-item">
+            <i class="fa fa-user-o"></i>
+              <a href="https://benhoyle.github.io/author/ben-hoyle.html">Ben Hoyle</a>          </li>
+          <li class="list-inline-item">
+            <i class="fa fa-files-o"></i>
+              <a href="https://benhoyle.github.io/tag/improving_results.html">#improving_results</a>          </li>
+      </ul>
+    </footer>
+  </article>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+<div class="row">
+  <p class="col-sm-6 text-sm-left">
+    <a href="https://www.linkedin.com/in/benhoyle/" class="text-muted" target="_blank">Ben Hoyle</a> - <a href="https://twitter.com/bjh_ip" ><i class="fab fa-twitter"></i></a>
+  </p>
+  <p class="col-sm-6 text-sm-right text-muted">
+    Generated by <a href="https://github.com/getpelican/pelican" class="text-muted" target="_blank">Pelican</a>
+    / <a href="https://github.com/nairobilug/pelican-alchemy" class="text-muted" target="_blank">Adapted from &#x2728;</a>
+  </p>
+</div>    </div>
+  </footer>
+</body>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script>
+$( document ).ready(function() {
+    $('table').addClass('table table-bordered');
+    $('tbody').addClass('table-striped');
+    $('th').addClass('text-center');
+});
+</script></html>
