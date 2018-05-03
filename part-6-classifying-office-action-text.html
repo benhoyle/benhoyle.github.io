@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <!-- Required meta tags -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <title>  6. Bonus Content - Classifying Office Action Text | Practical Machine Learning Adventures
+</title>
+  <link rel="canonical" href="https://benhoyle.github.io/part-6-classifying-office-action-text.html">
+
+
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.9/css/all.css" integrity="sha384-5SOiIsAziJl6AWe0HWRKTXlfcSHKmYV4RBF18PPJ173Kzn7jzMyFuTtk8JA7QQG1" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/pygments/default.min.css">
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/theme.css">
+
+  <link rel="alternate" type="application/atom+xml" title="Full Atom Feed"
+        href="https://benhoyle.github.io/feeds/all.atom.xml">
+  <link rel="alternate" type="application/atom+xml" title="Categories Atom Feed"
+        href="https://benhoyle.github.io/feeds/claim-classification.atom.xml">  
+  <meta name="description" content="This is an extra bonus post looking at how we could apply the same techniques to office action text classification.">
+  <script>
+    (function(i, s, o, g, r, a, m) {
+      i['GoogleAnalyticsObject'] = r;
+      i[r] = i[r] || function() {
+        (i[r].q = i[r].q || []).push(arguments)
+      }, i[r].l = 1 * new Date();
+      a = s.createElement(o);
+      a.async = 1;
+      a.src = g;
+      m = s.getElementsByTagName(o)[0];
+      m.parentNode.insertBefore(a, m)
+    })(window, document, 'script', 'https://www.google-analytics.com/analytics.js', 'ga');
+    ga('create', 'UA-96290248-2', 'auto');
+    ga('send', 'pageview');
+  </script>
+
+
+</head>
+
+<body>
+  <header class="header">
+    <div class="container">
+<div class="row">
+  <div class="col-sm-12">
+    <h1 class="title"><a href="https://benhoyle.github.io/">Practical Machine Learning Adventures</a></h1>
+      <p class="text-muted">A selection of machine learning projects</p>
+  </div>
+</div>    </div>
+  </header>
+
+  <div class="main">
+    <div class="container">
+  <article class="article">
+    <div class="content">
+      <h1>6. Bonus Content - Classifying Office Action Text</h1>
+<p>So I have obtained prosecution histories for around 100 cases. These are then put through a processing pipeline to extract text sections from the PDF files via the tesseract Optical Character Recognition (OCR) engine.</p>
+<p>I have then manually annotated each section to classify it into one of the following classes:</p>
+<div class="highlight"><pre><span></span>OBJECTION_TYPES = [
+    &#39;citation&#39;,
+    &#39;unity&#39;,
+    &#39;clarity&#39;,
+    &#39;added subject matter&#39;,
+    &#39;conciseness&#39;,
+    &#39;sufficiency&#39;,
+    &#39;novelty&#39;,
+    &#39;inventive step&#39;,
+    &#39;patentability&#39;,
+    &#39;other&#39;,
+    &#39;formalities&#39;
+    ]
+</pre></div>
+
+
+<p>Now at this stage there are multiple caveats:</p>
+<ul>
+<li>The section extraction is not great - the text is quite noisy and it is difficult to always successfully extract the sections correctly. This means there is often section text that mixes different portions of the office action. I have tried to manually clean the worst examples in the data used here. It is a question whether we run a multi-class classification on the whole OCR text or try to split it up. For a test project, the noisy smaller text portions are easier to work with.</li>
+<li>The data is fairly limited. We ideally want &gt;10x the data we have. For example, "sufficiency" only has a few examples.</li>
+</ul>
+<p>But it may be instructive to have a look at performance on this limited dataset to see whether the automated classification of text has promise.</p>
+<h2>Loading Data</h2>
+<p>I manually annotated the data as a spreadsheet. We thus need to load the data from the spreadsheet.</p>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">openpyxl</span> <span class="kn">import</span> <span class="n">load_workbook</span>
+
+<span class="n">wb</span> <span class="o">=</span> <span class="n">load_workbook</span><span class="p">(</span><span class="s1">&#39;data_to_label_processed.xlsx&#39;</span><span class="p">)</span>
+<span class="n">active_sheet</span> <span class="o">=</span> <span class="n">wb</span><span class="p">[</span><span class="n">wb</span><span class="o">.</span><span class="n">sheetnames</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+<span class="n">read_data</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">active_sheet</span><span class="o">.</span><span class="n">rows</span><span class="p">:</span>
+    <span class="n">row_data</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">row</span><span class="p">:</span>
+        <span class="n">row_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">column</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+    <span class="n">read_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">row_data</span><span class="p">)</span>
+
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;There are {0} records - each record having {1} fields:</span><span class="se">\n</span><span class="s2">{2}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">read_data</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">read_data</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">read_data</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>There are 1188 records - each record having 8 fields:
+[&#39;10850871.4&#39;, &#39;EP&#39;, &#39;5ae83cdcab21763a9a6bba7d&#39;, datetime.datetime(2017, 2, 21, 0, 0), &#39;1&#39;, &#39;Reference is made to the following document(s); the numbering will be\nadhered to in the rest of the procedure.\n\nD1 WO 03/025775 A1 (WELLOGIX INC [US]) 27 March 2003 (2003-03-27)\n\nD2 us 2001/028364 A1 (FREDELL THOMAS [US] ET AL) 11 October 2001\n(2001-10-11)&#39;, &#39;citation&#39;, None]
+</pre></div>
+
+
+<p>For our classification example we need a set of tuples ("text", "classification"). We'll add the number to the start of the text.</p>
+<div class="highlight"><pre><span></span><span class="c1"># Skip first row as that is the header</span>
+<span class="n">data</span> <span class="o">=</span> <span class="p">[(</span><span class="s2">&quot;{0} {1}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="mi">4</span><span class="p">],</span> <span class="n">r</span><span class="p">[</span><span class="mi">5</span><span class="p">]),</span> <span class="n">r</span><span class="p">[</span><span class="mi">6</span><span class="p">])</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">read_data</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]</span>
+<span class="k">print</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>(&#39;1 Reference is made to the following document(s); the numbering will be\nadhered to in the rest of the procedure.\n\nD1 WO 03/025775 A1 (WELLOGIX INC [US]) 27 March 2003 (2003-03-27)\n\nD2 us 2001/028364 A1 (FREDELL THOMAS [US] ET AL) 11 October 2001\n(2001-10-11)&#39;, &#39;citation&#39;)
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="c1"># Check for blank entries - this screws up the label encoding</span>
+<span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">c</span><span class="p">]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>[]
+</pre></div>
+
+
+<h2>Transforming the Data</h2>
+<p>Now we need to convert our text data to a numeric equivalent.</p>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">keras.utils</span> <span class="kn">import</span> <span class="n">to_categorical</span>
+<span class="kn">from</span> <span class="nn">sklearn.preprocessing</span> <span class="kn">import</span> <span class="n">LabelEncoder</span>
+
+<span class="n">Y_class</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+
+<span class="c1"># encode class values as integers</span>
+<span class="n">label_e</span> <span class="o">=</span> <span class="n">LabelEncoder</span><span class="p">()</span>
+<span class="n">label_e</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">Y_class</span><span class="p">)</span>
+<span class="n">encoded_Y</span> <span class="o">=</span> <span class="n">label_e</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">Y_class</span><span class="p">)</span>
+<span class="c1"># convert integers to dummy variables (i.e. one hot encoded)</span>
+<span class="n">Y</span> <span class="o">=</span> <span class="n">to_categorical</span><span class="p">(</span><span class="n">encoded_Y</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;Our classes are now a matrix of {0}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">Y</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;Original label: {0}; Converted label: {1}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">Y_class</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">Y</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="nt">Using</span> <span class="nt">TensorFlow</span> <span class="nt">backend</span><span class="o">.</span>
+
+
+<span class="nt">Our</span> <span class="nt">classes</span> <span class="nt">are</span> <span class="nt">now</span> <span class="nt">a</span> <span class="nt">matrix</span> <span class="nt">of</span> <span class="o">(</span><span class="nt">1187</span><span class="o">,</span> <span class="nt">10</span><span class="o">)</span>
+<span class="nt">Original</span> <span class="nt">label</span><span class="o">:</span> <span class="nt">citation</span><span class="o">;</span> <span class="nt">Converted</span> <span class="nt">label</span><span class="o">:</span> <span class="cp">[</span><span class="mi">0</span><span class="nx">.</span> <span class="mi">1</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span> <span class="mi">0</span><span class="nx">.</span><span class="cp">]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">label_e</span><span class="o">.</span><span class="n">classes_</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>array([&#39;added subject matter&#39;, &#39;citation&#39;, &#39;clarity&#39;, &#39;formalities&#39;,
+       &#39;inventive step&#39;, &#39;novelty&#39;, &#39;other&#39;, &#39;patentability&#39;,
+       &#39;sufficiency&#39;, &#39;unity&#39;], dtype=&#39;&lt;U20&#39;)
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">keras.preprocessing.text</span> <span class="kn">import</span> <span class="n">Tokenizer</span>
+
+<span class="n">docs</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+
+<span class="c1"># create the tokenizer</span>
+<span class="n">t</span> <span class="o">=</span> <span class="n">Tokenizer</span><span class="p">(</span><span class="n">num_words</span><span class="o">=</span><span class="mi">2500</span><span class="p">)</span>
+<span class="c1"># fit the tokenizer on the documents</span>
+<span class="n">t</span><span class="o">.</span><span class="n">fit_on_texts</span><span class="p">(</span><span class="n">docs</span><span class="p">)</span>
+
+<span class="n">X</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">texts_to_matrix</span><span class="p">(</span><span class="n">docs</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;tfidf&#39;</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="k">print</span><span class="p">(</span><span class="s2">&quot;Our data has the following dimensionality: &quot;</span><span class="p">,</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;An example array is: &quot;</span><span class="p">,</span> <span class="n">X</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">:</span><span class="mi">100</span><span class="p">])</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>Our data has the following dimensionality:  (1187, 2500)
+An example array is:  [0.         1.78814384 0.79917757 1.54672314 0.         0.93832662
+ 0.         0.89437137 1.00441907 0.         0.         0.
+ 0.         1.29298663 0.         0.         0.         0.
+ 0.         0.         0.         1.46439595 0.         0.
+ 0.         0.         0.         0.         0.         0.
+ 0.         0.         0.         0.         0.         0.
+ 0.         0.         0.         0.         0.         0.
+ 0.         0.         0.         0.         0.         0.
+ 2.06700994 0.         0.         0.         0.         0.
+ 0.         0.         0.         0.         0.         0.
+ 2.10873391 0.         0.         0.         0.         0.
+ 0.         0.         0.         0.         0.         0.
+ 0.         0.         0.         0.         2.05192351 0.
+ 0.         0.         0.         0.         0.         0.
+ 0.         0.         0.         6.36750738 0.         2.38799797
+ 0.         0.         0.         0.         0.         0.
+ 0.         0.         0.         0.        ]
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="c1"># Convert one hot to target integer</span>
+<span class="n">Y_integers</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+
+
+<h2>Try Some Classifiers</h2>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">sklearn.naive_bayes</span> <span class="kn">import</span> <span class="n">MultinomialNB</span>
+<span class="kn">from</span> <span class="nn">sklearn.dummy</span> <span class="kn">import</span> <span class="n">DummyClassifier</span>
+<span class="kn">from</span> <span class="nn">sklearn.model_selection</span> <span class="kn">import</span> <span class="n">cross_val_score</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">scores</span> <span class="o">=</span> <span class="n">cross_val_score</span><span class="p">(</span><span class="n">DummyClassifier</span><span class="p">(</span><span class="n">random_state</span><span class="o">=</span><span class="mi">5</span><span class="p">),</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y_integers</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span>
+        <span class="s2">&quot;Random Classifier has an average classification accuracy of {0:.2f}% ({1:.2f}%)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">scores</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">*</span><span class="mi">100</span><span class="p">,</span> 
+            <span class="n">scores</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="o">*</span><span class="mi">100</span>
+        <span class="p">)</span>
+<span class="p">)</span>
+</pre></div>
+
+
+<p>Warning: The least populated class in y has only 9 members, which is too few. The minimum number of members in any class cannot be less than n_splits=10.</p>
+<div class="highlight"><pre><span></span>Random Classifier has an average classification accuracy of 18.98% (3.46%)
+</pre></div>
+
+
+<p>As expected we also have a warning that our "sufficiency" class doesn't have enough data points!</p>
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">sklearn.model_selection</span> <span class="kn">import</span> <span class="n">train_test_split</span>
+<span class="kn">from</span> <span class="nn">sklearn.metrics</span> <span class="kn">import</span> <span class="n">confusion_matrix</span>
+
+<span class="k">def</span> <span class="nf">plot_confusion_matrix</span><span class="p">(</span><span class="n">cm</span><span class="p">,</span> <span class="n">classes</span><span class="p">,</span>
+                          <span class="n">normalize</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                          <span class="n">title</span><span class="o">=</span><span class="s1">&#39;Confusion matrix&#39;</span><span class="p">,</span>
+                          <span class="n">cmap</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">Blues</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This function prints and plots the confusion matrix.</span>
+<span class="sd">    Normalization can be applied by setting `normalize=True`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">normalize</span><span class="p">:</span>
+        <span class="n">cm</span> <span class="o">=</span> <span class="p">(</span><span class="n">cm</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;float&#39;</span><span class="p">)</span> <span class="o">/</span> <span class="n">cm</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">])</span><span class="o">*</span><span class="mi">100</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Normalized confusion matrix&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Confusion matrix, without normalization&#39;</span><span class="p">)</span>
+
+    <span class="k">print</span><span class="p">(</span><span class="n">cm</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">cm</span><span class="p">,</span> <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="n">cmap</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="n">title</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">()</span>
+    <span class="n">tick_marks</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">classes</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">tick_marks</span><span class="p">,</span> <span class="n">classes</span><span class="p">,</span> <span class="n">rotation</span><span class="o">=</span><span class="mi">45</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">yticks</span><span class="p">(</span><span class="n">tick_marks</span><span class="p">,</span> <span class="n">classes</span><span class="p">)</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;.1f&#39;</span> <span class="k">if</span> <span class="n">normalize</span> <span class="k">else</span> <span class="s1">&#39;d&#39;</span>
+    <span class="n">thresh</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">/</span> <span class="mf">2.</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">cm</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">range</span><span class="p">(</span><span class="n">cm</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])):</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">format</span><span class="p">(</span><span class="n">cm</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">],</span> <span class="n">fmt</span><span class="p">),</span>
+                 <span class="n">horizontalalignment</span><span class="o">=</span><span class="s2">&quot;center&quot;</span><span class="p">,</span>
+                 <span class="n">color</span><span class="o">=</span><span class="s2">&quot;white&quot;</span> <span class="k">if</span> <span class="n">cm</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">thresh</span> <span class="k">else</span> <span class="s2">&quot;black&quot;</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;True label&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Predicted label&#39;</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">matplotlib</span>
+<span class="n">matplotlib</span><span class="o">.</span><span class="n">rcParams</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;font.size&#39;</span><span class="p">:</span> <span class="mi">22</span><span class="p">})</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">NBclassifier</span> <span class="o">=</span> <span class="n">MultinomialNB</span><span class="p">()</span>
+<span class="n">scores</span> <span class="o">=</span> <span class="n">cross_val_score</span><span class="p">(</span><span class="n">NBclassifier</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y_integers</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span>
+        <span class="s2">&quot;Naive Bayes Classifier has an average classification accuracy of {0:.2f} ({1:.2f})&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">scores</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">*</span><span class="mi">100</span><span class="p">,</span> 
+            <span class="n">scores</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="o">*</span><span class="mi">100</span>
+        <span class="p">)</span>
+<span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">Warning</span><span class="o">:</span> <span class="n">The</span> <span class="n">least</span> <span class="n">populated</span> <span class="kd">class</span> <span class="k">in</span> <span class="n">y</span> <span class="n">has</span> <span class="n">only</span> <span class="mi">9</span> <span class="n">members</span><span class="o">,</span> <span class="n">which</span> <span class="k">is</span> <span class="n">too</span> <span class="n">few</span><span class="o">.</span> <span class="n">The</span> <span class="n">minimum</span> <span class="n">number</span> <span class="n">of</span> <span class="n">members</span> <span class="k">in</span> <span class="n">any</span> <span class="kd">class</span> <span class="n">cannot</span> <span class="n">be</span> <span class="n">less</span> <span class="n">than</span> <span class="n">n_splits</span><span class="o">=</span><span class="mi">10</span><span class="o">.</span>
+  <span class="o">%</span> <span class="o">(</span><span class="n">min_groups</span><span class="o">,</span> <span class="n">self</span><span class="o">.</span><span class="na">n_splits</span><span class="o">)),</span> <span class="n">Warning</span><span class="o">)</span>
+
+
+<span class="n">Naive</span> <span class="n">Bayes</span> <span class="n">Classifier</span> <span class="n">has</span> <span class="n">an</span> <span class="n">average</span> <span class="n">classification</span> <span class="n">accuracy</span> <span class="n">of</span> <span class="mf">63.08</span> <span class="o">(</span><span class="mf">4.88</span><span class="o">)</span>
+</pre></div>
+
+
+<p>This seems suprisingly similar to our previous task, where we had a classification accuracy of around 60%.</p>
+<p>Let's have a closer look at how the classifier is being applied.</p>
+<div class="highlight"><pre><span></span><span class="n">X_train</span><span class="p">,</span> <span class="n">X_test</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">y_test</span> <span class="o">=</span> <span class="n">train_test_split</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y_integers</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+<span class="n">NB_y_pred</span> <span class="o">=</span> <span class="n">NBclassifier</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
+<span class="n">NB_cnf_matrix</span> <span class="o">=</span> <span class="n">confusion_matrix</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">NB_y_pred</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">set_printoptions</span><span class="p">(</span><span class="n">precision</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">20</span><span class="p">))</span>
+<span class="n">plot_confusion_matrix</span><span class="p">(</span><span class="n">NB_cnf_matrix</span><span class="p">,</span> <span class="n">classes</span><span class="o">=</span><span class="n">label_e</span><span class="o">.</span><span class="n">classes_</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                      <span class="n">title</span><span class="o">=</span><span class="s1">&#39;Confusion matrix for NB Classifier, with normalization&#39;</span><span class="p">)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>Normalized confusion matrix
+[[ 50.     0.     0.     0.    16.67   0.    33.33   0.     0.     0.  ]
+ [  0.   100.     0.     0.     0.     0.     0.     0.     0.     0.  ]
+ [  3.45   0.    79.31   3.45   3.45   3.45   6.9    0.     0.     0.  ]
+ [  0.     0.     0.   100.     0.     0.     0.     0.     0.     0.  ]
+ [  1.83   0.     2.75   0.    71.56  11.01   2.75   5.5    4.59   0.  ]
+ [  0.     0.     3.57   0.    17.86  60.71   7.14   7.14   0.     3.57]
+ [  6.25   0.     4.69   3.12  12.5   10.94  53.12   7.81   1.56   0.  ]
+ [  0.     0.     0.     0.    10.     0.     0.    90.     0.     0.  ]
+ [  0.     0.     0.     0.     0.     0.     0.     0.   100.     0.  ]
+ [  0.     0.    16.67   0.    16.67   0.     0.     0.     0.    66.67]]
+</pre></div>
+
+
+<p><img alt="png" src="https://benhoyle.github.io/images/CC_6_output_24_1.resized.png"></p>
+<div class="highlight"><pre><span></span><span class="c1"># Lets also try the Multi-layer Perceptron</span>
+<span class="kn">from</span> <span class="nn">sklearn.neural_network</span> <span class="kn">import</span> <span class="n">MLPClassifier</span>
+
+<span class="n">MLPclassifier</span> <span class="o">=</span> <span class="n">MLPClassifier</span><span class="p">()</span>
+<span class="n">scores</span> <span class="o">=</span> <span class="n">cross_val_score</span><span class="p">(</span><span class="n">MLPclassifier</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y_integers</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span>
+        <span class="s2">&quot;MLP Classifier has an average classification accuracy of {0:.2f} ({1:.2f})&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">scores</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">*</span><span class="mi">100</span><span class="p">,</span> 
+            <span class="n">scores</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="o">*</span><span class="mi">100</span>
+        <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">X_train</span><span class="p">,</span> <span class="n">X_test</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">y_test</span> <span class="o">=</span> <span class="n">train_test_split</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y_integers</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+<span class="n">MLP_y_pred</span> <span class="o">=</span> <span class="n">MLPclassifier</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
+<span class="n">MLP_cnf_matrix</span> <span class="o">=</span> <span class="n">confusion_matrix</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">MLP_y_pred</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">set_printoptions</span><span class="p">(</span><span class="n">precision</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">20</span><span class="p">))</span>
+<span class="n">plot_confusion_matrix</span><span class="p">(</span><span class="n">MLP_cnf_matrix</span><span class="p">,</span> <span class="n">classes</span><span class="o">=</span><span class="n">label_e</span><span class="o">.</span><span class="n">classes_</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                      <span class="n">title</span><span class="o">=</span><span class="s1">&#39;Confusion matrix for MLP Classifier, with normalization&#39;</span><span class="p">)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>MLP Classifier has an average classification accuracy of 70.70 (4.68)
+Normalized confusion matrix
+[[ 50.     0.    16.67   0.    16.67   0.    16.67   0.     0.     0.  ]
+ [  0.   100.     0.     0.     0.     0.     0.     0.     0.     0.  ]
+ [  0.     0.    82.76   0.     6.9    3.45   6.9    0.     0.     0.  ]
+ [  0.     0.     0.   100.     0.     0.     0.     0.     0.     0.  ]
+ [  0.     0.     4.59   0.    79.82   3.67  10.09   1.83   0.     0.  ]
+ [  0.     0.     0.     0.    17.86  64.29  14.29   3.57   0.     0.  ]
+ [  1.56   0.     3.12   1.56  18.75   1.56  71.88   1.56   0.     0.  ]
+ [  0.     0.     0.     0.    15.     0.     5.    80.     0.     0.  ]
+ [  0.     0.     0.     0.     0.     0.     0.     0.   100.     0.  ]
+ [  0.     0.    16.67   0.    33.33   0.    33.33   0.     0.    16.67]]
+</pre></div>
+
+
+<p><img alt="png" src="https://benhoyle.github.io/images/CC_6_output_25_2.resized.png"></p>
+<h2>Comments on Results</h2>
+<p>These are fairly good results out-of-the-box.</p>
+<p>I think the main improvements would come from:</p>
+<ul>
+<li>cleaner data; </li>
+<li>more data;</li>
+<li>more consistent labelling.</li>
+</ul>
+<p>This also does not take account of the fact that objections are often presented in numbered lists with a hierarchical structure. We can use this as a form of ensemble classifier.</p>
+    </div>
+    <hr/>
+    <footer>
+      <ul class="list-inline">
+        <li class="list-inline-item text-muted" title="2018-05-03T11:52:32.371005+01:00">
+          <i class="fa fa-clock-o"></i>
+          Thu 03 May 2018
+        </li>
+        <li class="list-inline-item">
+          <i class="fa fa-folder-open-o"></i>
+          <a href="https://benhoyle.github.io/category/claim-classification.html">Claim Classification</a>
+        </li>
+          <li class="list-inline-item">
+            <i class="fa fa-user-o"></i>
+              <a href="https://benhoyle.github.io/author/ben-hoyle.html">Ben Hoyle</a>          </li>
+          <li class="list-inline-item">
+            <i class="fa fa-files-o"></i>
+              <a href="https://benhoyle.github.io/tag/bonus.html">#bonus</a>          </li>
+      </ul>
+    </footer>
+  </article>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+<div class="row">
+  <p class="col-sm-6 text-sm-left">
+    <a href="https://www.linkedin.com/in/benhoyle/" class="text-muted" target="_blank">Ben Hoyle</a> - <a href="https://twitter.com/bjh_ip" ><i class="fab fa-twitter"></i></a>
+  </p>
+  <p class="col-sm-6 text-sm-right text-muted">
+    Generated by <a href="https://github.com/getpelican/pelican" class="text-muted" target="_blank">Pelican</a>
+    / <a href="https://github.com/nairobilug/pelican-alchemy" class="text-muted" target="_blank">Adapted from &#x2728;</a>
+  </p>
+</div>    </div>
+  </footer>
+</body>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script>
+$( document ).ready(function() {
+    $('table').addClass('table table-bordered');
+    $('tbody').addClass('table-striped');
+    $('th').addClass('text-center');
+});
+</script></html>
