@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <!-- Required meta tags -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <title>  2. Tweet2Bible - Exploring the Data | Practical Machine Learning Adventures
+</title>
+  <link rel="canonical" href="https://benhoyle.github.io/part-2-tweet2bible-exploring-the-data.html">
+
+
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.9/css/all.css" integrity="sha384-5SOiIsAziJl6AWe0HWRKTXlfcSHKmYV4RBF18PPJ173Kzn7jzMyFuTtk8JA7QQG1" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/pygments/default.min.css">
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/theme.css">
+
+  <link rel="alternate" type="application/atom+xml" title="Full Atom Feed"
+        href="https://benhoyle.github.io/feeds/all.atom.xml">
+  <link rel="alternate" type="application/atom+xml" title="Categories Atom Feed"
+        href="https://benhoyle.github.io/feeds/tweet2bible.atom.xml">  
+  <meta name="description" content="This post explores the data for our Tweet2Bible experiments.">
+  <script>
+    (function(i, s, o, g, r, a, m) {
+      i['GoogleAnalyticsObject'] = r;
+      i[r] = i[r] || function() {
+        (i[r].q = i[r].q || []).push(arguments)
+      }, i[r].l = 1 * new Date();
+      a = s.createElement(o);
+      a.async = 1;
+      a.src = g;
+      m = s.getElementsByTagName(o)[0];
+      m.parentNode.insertBefore(a, m)
+    })(window, document, 'script', 'https://www.google-analytics.com/analytics.js', 'ga');
+    ga('create', 'UA-96290248-2', 'auto');
+    ga('send', 'pageview');
+  </script>
+
+
+</head>
+
+<body>
+  <header class="header">
+    <div class="container">
+<div class="row">
+  <div class="col-sm-12">
+    <h1 class="title"><a href="https://benhoyle.github.io/">Practical Machine Learning Adventures</a></h1>
+      <p class="text-muted">A selection of machine learning projects</p>
+  </div>
+</div>    </div>
+  </header>
+
+  <div class="main">
+    <div class="container">
+  <article class="article">
+    <div class="content">
+      <h1>2. Tweet2Bible - Exploring the Data</h1>
+<p>In the previous post we looked at the problem for our current project: how to match a tweet to passages of the Bible.</p>
+<p>In this post we will look at the steps required to prepare some data for our algorithms. We will also look at the nature of the data, which may give us some insights as to how we transform our data in later stages.</p>
+<h2>Getting the Data</h2>
+<h3>Tweets</h3>
+<p>Twitter offers an option in the settings to download your tweet archive. Log in to the web version, goto account settings and click the "Download Archive" button. You will then be sent an email with a link to the data.</p>
+<p>Fair play to Twitter, the archive is quite cool. You get a CSV file with your tweets and some other useful data, plus a JSON archive (which can be viewed via a local HTML file). To keep things simple we'll just use the CSV file for now.</p>
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">csv</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;tweets.csv&#39;</span><span class="p">,</span> <span class="n">newline</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">csvfile</span><span class="p">:</span>
+    <span class="n">casereader</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">reader</span><span class="p">(</span><span class="n">csvfile</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="n">row</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">casereader</span><span class="p">]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>[&#39;tweet_id&#39;,
+ &#39;in_reply_to_status_id&#39;,
+ &#39;in_reply_to_user_id&#39;,
+ &#39;timestamp&#39;,
+ &#39;source&#39;,
+ &#39;text&#39;,
+ &#39;retweeted_status_id&#39;,
+ &#39;retweeted_status_user_id&#39;,
+ &#39;retweeted_status_timestamp&#39;,
+ &#39;expanded_urls&#39;]
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">data</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>[[&#39;1009719610910957568&#39;,
+  &#39;1009527946036613121&#39;,
+  &#39;20524211&#39;,
+  &#39;2018-06-21 08:48:09 +0000&#39;,
+  &#39;<span class="nt">&lt;a</span> <span class="na">href=</span><span class="s">&quot;http://twitter.com&quot;</span> <span class="na">rel=</span><span class="s">&quot;nofollow&quot;</span><span class="nt">&gt;</span>Twitter Web Client<span class="nt">&lt;/a&gt;</span>&#39;,
+  &quot;@patently It&#39;s okay - whatever photo storage app you use is already plugged into the system.&quot;,
+  &#39;&#39;,
+  &#39;&#39;,
+  &#39;&#39;,
+  &#39;&#39;],
+ [&#39;1009409717205168128&#39;,
+  &#39;&#39;,
+  &#39;&#39;,
+  &#39;2018-06-20 12:16:45 +0000&#39;,
+  &#39;<span class="nt">&lt;a</span> <span class="na">href=</span><span class="s">&quot;http://twitter.com/download/iphone&quot;</span> <span class="na">rel=</span><span class="s">&quot;nofollow&quot;</span><span class="nt">&gt;</span>Twitter for iPhone<span class="nt">&lt;/a&gt;</span>&#39;,
+  &#39;I love all the people the computer said “looked a bit like Rick Astley” including, I think, JFK, Jesus and Norman Bates. https://t.co/HHI0HFU0Cy&#39;,
+  &#39;&#39;,
+  &#39;&#39;,
+  &#39;&#39;,
+  &#39;https://twitter.com/quasimondo/status/1009369380042485760&#39;]]
+</pre></div>
+
+
+<p>For now we will just extract the text to get a list of strings.</p>
+<div class="highlight"><pre><span></span><span class="n">D1</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">D1</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>[&quot;@patently It&#39;s okay - whatever photo storage app you use is already plugged into the system.&quot;,
+ &#39;I love all the people the computer said “looked a bit like Rick Astley” including, I think, JFK, Jesus and Norman Bates. https://t.co/HHI0HFU0Cy&#39;,
+ &quot;“These were ancient engineers with a genius that allowed people to walk multi-tonne statues and roll multi-tonne hats - which teaches us about the society&#39;s investment in honouring their ancestors. It&#39;s quite a remarkable accomplishment” https://t.co/DzscvwJ0do https://t.co/Q7B8ioRS0h&quot;,
+ &#39;KPMG audit work unacceptable - watchdog https://t.co/9np6lWkHTG [Average remuneration per partner in 2016 = £582k]&#39;,
+ &#39;Ooo Le Sud by Nino Ferrer - well done @SpotifyUK algorithms https://t.co/ANxMxVWiJV [Question is do I prefer the original French or Nino’s English version? Also check out the brilliantly proggy Métronomie]&#39;]
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="s2">&quot;We have {0} tweets.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">D1</span><span class="p">))</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>&#39;We have 9806 tweets.&#39;
+</pre></div>
+
+
+<p>Looking at some of our tweets, we need to unescape the text such that "&amp;" is converted to "&amp;". This can be performed using the html library.</p>
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">html</span>
+
+<span class="n">D1</span> <span class="o">=</span> <span class="p">[</span><span class="n">html</span><span class="o">.</span><span class="n">unescape</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">D1</span><span class="p">]</span>
+</pre></div>
+
+
+<h3>Bible</h3>
+<p>The Bible is actually quite a good source of text for natural language processing projects. </p>
+<ul>
+<li>it is free; </li>
+<li>people want to make it easy to distribute; </li>
+<li>it is naturally broken down into short passages; and</li>
+<li>it contains a variety of styles (I like to thing of it as a 2000 year old Wikipedia for middle-eastern farmers).</li>
+</ul>
+<p>For this project I went to <a href="http://biblehub.net/database/">BibleHub.net</a> which offers an Excel spreadsheet featuring 10 different versions of the Bible, where each row is a different verse. You get a free username and password in exchange for registration using an email address.</p>
+<p>We can use Pandas to convert the spreadsheet into useful Python data. We then need to pick a Bible to use. I think the most modern translation will probably be best. </p>
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">pandas</span> <span class="kn">as</span> <span class="nn">pd</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="c1"># Pandas needs the xlrd package to read excel files</span>
+<span class="err">!</span><span class="n">pip3</span> <span class="n">install</span> <span class="n">xlrd</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>Collecting xlrd
+[?25l  Downloading https://files.pythonhosted.org/packages/07/e6/e95c4eec6221bfd8528bcc4ea252a850bffcc4be88ebc367e23a1a84b0bb/xlrd-1.1.0-py2.py3-none-any.whl (108kB)
+[K    100% |################################| 112kB 1.1MB/s ta 0:00:01   65% |#####################           | 71kB 2.0MB/s eta 0:00:01
+[?25hInstalling collected packages: xlrd
+Successfully installed xlrd-1.1.0
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="nb">file</span> <span class="o">=</span> <span class="s1">&#39;bibles.xls&#39;</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_excel</span><span class="p">(</span><span class="nb">file</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">df</span><span class="o">.</span><span class="n">head</span><span class="p">()</span>
+</pre></div>
+
+
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Verse</th>
+      <th>King James Bible</th>
+      <th>American Standard Version</th>
+      <th>Douay-Rheims Bible</th>
+      <th>Darby Bible Translation</th>
+      <th>English Revised Version</th>
+      <th>Webster Bible Translation</th>
+      <th>World English Bible</th>
+      <th>Young's Literal Translation</th>
+      <th>American King James Version</th>
+      <th>Weymouth New Testament</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>Genesis 1:1</td>
+      <td>In the beginning God created the heaven and th...</td>
+      <td>In the beginning God created the heavens and t...</td>
+      <td>In the beginning God created heaven, and earth.</td>
+      <td>In the beginning God created the heavens and t...</td>
+      <td>In the beginning God created the heaven and th...</td>
+      <td>In the beginning God created the heaven and th...</td>
+      <td>In the beginning God created the heavens and t...</td>
+      <td>In the beginning of God's preparing the heaven...</td>
+      <td>In the beginning God created the heaven and th...</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>Genesis 1:2</td>
+      <td>And the earth was without form, and void; and ...</td>
+      <td>And the earth was waste and void; and darkness...</td>
+      <td>And the earth was void and empty, and darkness...</td>
+      <td>And the earth was waste and empty, and darknes...</td>
+      <td>And the earth was waste and void; and darkness...</td>
+      <td>And the earth was without form, and void; and ...</td>
+      <td>Now the earth was formless and empty. Darkness...</td>
+      <td>the earth hath existed waste and void, and dar...</td>
+      <td>And the earth was without form, and void; and ...</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>Genesis 1:3</td>
+      <td>And God said, Let there be light: and there wa...</td>
+      <td>And God said, Let there be light: and there wa...</td>
+      <td>And God said: Be light made. And light was made.</td>
+      <td>And God said, Let there be light. And there wa...</td>
+      <td>And God said, Let there be light: and there wa...</td>
+      <td>And God said, Let there be light: and there wa...</td>
+      <td>God said, |Let there be light,| and there was ...</td>
+      <td>and God saith, 'Let light be;' and light is.</td>
+      <td>And God said, Let there be light: and there wa...</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>Genesis 1:4</td>
+      <td>And God saw the light, that &lt;i&gt;it was&lt;/i&gt; good...</td>
+      <td>And God saw the light, that it was good: and G...</td>
+      <td>And God saw the light that it was good; and he...</td>
+      <td>And God saw the light that it was good; and Go...</td>
+      <td>And God saw the light, that it was good: and G...</td>
+      <td>And God saw the light, that it was good: and G...</td>
+      <td>God saw the light, and saw that it was good. G...</td>
+      <td>And God seeth the light that it is good, and G...</td>
+      <td>And God saw the light, that it was good: and G...</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>Genesis 1:5</td>
+      <td>And God called the light Day, and the darkness...</td>
+      <td>And God called the light Day, and the darkness...</td>
+      <td>And he called the light Day, and the darkness ...</td>
+      <td>And God called the light Day, and the darkness...</td>
+      <td>And God called the light Day, and the darkness...</td>
+      <td>And God called the light Day, and the darkness...</td>
+      <td>God called the light |day,| and the darkness h...</td>
+      <td>and God calleth to the light 'Day,' and to the...</td>
+      <td>And God called the light Day, and the darkness...</td>
+      <td>NaN</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="highlight"><pre><span></span><span class="n">df</span><span class="o">.</span><span class="n">describe</span><span class="p">()</span>
+</pre></div>
+
+
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Verse</th>
+      <th>King James Bible</th>
+      <th>American Standard Version</th>
+      <th>Douay-Rheims Bible</th>
+      <th>Darby Bible Translation</th>
+      <th>English Revised Version</th>
+      <th>Webster Bible Translation</th>
+      <th>World English Bible</th>
+      <th>Young's Literal Translation</th>
+      <th>American King James Version</th>
+      <th>Weymouth New Testament</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>count</th>
+      <td>31102</td>
+      <td>31102</td>
+      <td>31100</td>
+      <td>31092</td>
+      <td>31099</td>
+      <td>31086</td>
+      <td>31102</td>
+      <td>31098</td>
+      <td>31102</td>
+      <td>31102</td>
+      <td>7924</td>
+    </tr>
+    <tr>
+      <th>unique</th>
+      <td>31102</td>
+      <td>30840</td>
+      <td>30716</td>
+      <td>30886</td>
+      <td>30722</td>
+      <td>30687</td>
+      <td>30855</td>
+      <td>30776</td>
+      <td>30861</td>
+      <td>30825</td>
+      <td>7913</td>
+    </tr>
+    <tr>
+      <th>top</th>
+      <td>Proverbs 26:24</td>
+      <td>And the LORD spake unto Moses, saying,</td>
+      <td>And Jehovah spake unto Moses, saying,</td>
+      <td>And the Lord spoke to Moses, saying:</td>
+      <td>And Jehovah spoke to Moses, saying,</td>
+      <td>And the LORD spake unto Moses, saying,</td>
+      <td>And the LORD spoke to Moses, saying,</td>
+      <td>Yahweh spoke to Moses, saying,</td>
+      <td>And Jehovah speaketh unto Moses, saying,</td>
+      <td>And the LORD spoke to Moses, saying,</td>
+      <td>May grace and peace be granted to you from God...</td>
+    </tr>
+    <tr>
+      <th>freq</th>
+      <td>1</td>
+      <td>72</td>
+      <td>72</td>
+      <td>55</td>
+      <td>72</td>
+      <td>72</td>
+      <td>72</td>
+      <td>71</td>
+      <td>73</td>
+      <td>72</td>
+      <td>5</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>Bibles!</p>
+<p>Cool. I think the World English Bible looks good for a modern translation. It does have some annoying "|" we might want to scrub out.</p>
+<div class="highlight"><pre><span></span><span class="n">worldbible</span> <span class="o">=</span> <span class="n">df</span><span class="p">[[</span><span class="s1">&#39;Verse&#39;</span><span class="p">,</span> <span class="s1">&#39;World English Bible&#39;</span><span class="p">]]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">worldbible</span><span class="o">.</span><span class="n">head</span><span class="p">()</span>
+</pre></div>
+
+
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Verse</th>
+      <th>World English Bible</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>Genesis 1:1</td>
+      <td>In the beginning God created the heavens and t...</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>Genesis 1:2</td>
+      <td>Now the earth was formless and empty. Darkness...</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>Genesis 1:3</td>
+      <td>God said, |Let there be light,| and there was ...</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>Genesis 1:4</td>
+      <td>God saw the light, and saw that it was good. G...</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>Genesis 1:5</td>
+      <td>God called the light |day,| and the darkness h...</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="highlight"><pre><span></span><span class="n">D2</span> <span class="o">=</span> <span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">worldbible</span><span class="o">.</span><span class="n">to_records</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="bp">False</span><span class="p">)]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="n">D2</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>[(&#39;Genesis 1:1&#39;, &#39;In the beginning God created the heavens and the earth.&#39;),
+ (&#39;Genesis 1:2&#39;,
+  &quot;Now the earth was formless and empty. Darkness was on the surface of the deep. God&#39;s Spirit was hovering over the surface of the waters.&quot;),
+ (&#39;Genesis 1:3&#39;, &#39;God said, |Let there be light,| and there was light.&#39;),
+ (&#39;Genesis 1:4&#39;,
+  &#39;God saw the light, and saw that it was good. God divided the light from the darkness.&#39;),
+ (&#39;Genesis 1:5&#39;,
+  &#39;God called the light |day,| and the darkness he called |night.| There was evening and there was morning, one day.&#39;)]
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="c1"># Just get rid of those annoying |</span>
+<span class="n">D2</span> <span class="o">=</span> <span class="p">[(</span><span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;|&quot;</span><span class="p">,</span><span class="s2">&quot;&quot;</span><span class="p">))</span> <span class="k">for</span> <span class="n">v</span><span class="p">,</span><span class="n">t</span> <span class="ow">in</span> <span class="n">D2</span><span class="p">]</span>
+<span class="n">D2</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>[(&#39;Genesis 1:1&#39;, &#39;In the beginning God created the heavens and the earth.&#39;),
+ (&#39;Genesis 1:2&#39;,
+  &quot;Now the earth was formless and empty. Darkness was on the surface of the deep. God&#39;s Spirit was hovering over the surface of the waters.&quot;),
+ (&#39;Genesis 1:3&#39;, &#39;God said, Let there be light, and there was light.&#39;),
+ (&#39;Genesis 1:4&#39;,
+  &#39;God saw the light, and saw that it was good. God divided the light from the darkness.&#39;),
+ (&#39;Genesis 1:5&#39;,
+  &#39;God called the light day, and the darkness he called night. There was evening and there was morning, one day.&#39;)]
+</pre></div>
+
+
+<div class="highlight"><pre><span></span><span class="s2">&quot;We have {0} Bible passages.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">D2</span><span class="p">))</span>
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>&#39;We have 31102 Bible passages.&#39;
+</pre></div>
+
+
+<p>So now we D1, a set of tweets, and D2, a set of Bible passages. Let's get matching!</p>
+<div class="highlight"><pre><span></span><span class="c1"># Let&#39;s save our data so we can easily load it in a future session</span>
+<span class="n">save_data</span> <span class="o">=</span> <span class="p">(</span><span class="n">D1</span><span class="p">,</span> <span class="n">D2</span><span class="p">)</span>
+<span class="kn">import</span> <span class="nn">pickle</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;processed_data.pkl&quot;</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">save_data</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+</pre></div>
+    </div>
+    <hr/>
+    <footer>
+      <ul class="list-inline">
+        <li class="list-inline-item text-muted" title="2018-06-25T09:33:59.089251+01:00">
+          <i class="fa fa-clock-o"></i>
+          Mon 25 June 2018
+        </li>
+        <li class="list-inline-item">
+          <i class="fa fa-folder-open-o"></i>
+          <a href="https://benhoyle.github.io/category/tweet2bible.html">Tweet2Bible</a>
+        </li>
+          <li class="list-inline-item">
+            <i class="fa fa-user-o"></i>
+              <a href="https://benhoyle.github.io/author/ben-hoyle.html">Ben Hoyle</a>          </li>
+          <li class="list-inline-item">
+            <i class="fa fa-files-o"></i>
+              <a href="https://benhoyle.github.io/tag/preparing_data.html">#preparing_data</a>          </li>
+      </ul>
+    </footer>
+  </article>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+<div class="row">
+  <p class="col-sm-6 text-sm-left">
+    <a href="https://www.linkedin.com/in/benhoyle/" class="text-muted" target="_blank">Ben Hoyle</a> - <a href="https://twitter.com/bjh_ip" ><i class="fab fa-twitter"></i></a>
+  </p>
+  <p class="col-sm-6 text-sm-right text-muted">
+    Generated by <a href="https://github.com/getpelican/pelican" class="text-muted" target="_blank">Pelican</a>
+    / <a href="https://github.com/nairobilug/pelican-alchemy" class="text-muted" target="_blank">Adapted from &#x2728;</a>
+  </p>
+</div>    </div>
+  </footer>
+</body>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script>
+$( document ).ready(function() {
+    $('table').addClass('table table-bordered');
+    $('tbody').addClass('table-striped');
+    $('th').addClass('text-center');
+});
+</script></html>

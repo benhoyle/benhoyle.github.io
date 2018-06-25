@@ -1,324 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Practical Machine Learning Adventures - Claim Classification</title><link href="https://benhoyle.github.io/" rel="alternate"></link><link href="https://benhoyle.github.io/feeds/claim-classification.atom.xml" rel="self"></link><id>https://benhoyle.github.io/</id><updated>2018-05-03T11:52:32+01:00</updated><entry><title>6. Bonus Content - Classifying Office Action Text</title><link href="https://benhoyle.github.io/part-6-classifying-office-action-text.html" rel="alternate"></link><published>2018-05-03T11:52:32+01:00</published><updated>2018-05-03T11:52:32+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-05-03:/part-6-classifying-office-action-text.html</id><summary type="html">&lt;p&gt;This is an extra bonus post looking at how we could apply the same techniques to office action text classification.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;6. Bonus Content - Classifying Office Action Text&lt;/h1&gt;
-&lt;p&gt;So I have obtained prosecution histories for around 100 cases. These are then put through a processing pipeline to extract text sections from the PDF files via the tesseract Optical Character Recognition (OCR) engine.&lt;/p&gt;
-&lt;p&gt;I have then manually annotated each section to classify it into one of the following classes:&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;OBJECTION_TYPES = [
-    &amp;#39;citation&amp;#39;,
-    &amp;#39;unity&amp;#39;,
-    &amp;#39;clarity&amp;#39;,
-    &amp;#39;added subject matter&amp;#39;,
-    &amp;#39;conciseness&amp;#39;,
-    &amp;#39;sufficiency&amp;#39;,
-    &amp;#39;novelty&amp;#39;,
-    &amp;#39;inventive step&amp;#39;,
-    &amp;#39;patentability&amp;#39;,
-    &amp;#39;other&amp;#39;,
-    &amp;#39;formalities&amp;#39;
-    ]
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;p&gt;Now at this stage there are multiple caveats:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;The section extraction is not great - the text is quite noisy and it is difficult to always successfully extract the sections correctly. This means there is often section text that mixes different portions of the office action. I have tried to manually clean the worst examples in the data used here. It is a question whether we run a multi-class classification on the whole OCR text or try to split it up. For a test project, the noisy smaller text portions are easier to work with.&lt;/li&gt;
-&lt;li&gt;The data is fairly limited. We ideally want &amp;gt;10x the data we have. For example, "sufficiency" only has a few examples.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;But it may be instructive to have a look at performance on this limited dataset to see whether the automated classification of text has promise.&lt;/p&gt;
-&lt;h2&gt;Loading Data&lt;/h2&gt;
-&lt;p&gt;I manually annotated the data as a spreadsheet. We thus need to load the data from the spreadsheet.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;openpyxl&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;load_workbook&lt;/span&gt;
-
-&lt;span class="n"&gt;wb&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;load_workbook&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;data_to_label_processed.xlsx&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="n"&gt;active_sheet&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;wb&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;wb&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sheetnames&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]]&lt;/span&gt;
-&lt;span class="n"&gt;read_data&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[]&lt;/span&gt;
-&lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;row&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;active_sheet&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;rows&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
-    &lt;span class="n"&gt;row_data&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[]&lt;/span&gt;
-    &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;column&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;row&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
-        &lt;span class="n"&gt;row_data&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;append&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;column&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;value&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="n"&gt;read_data&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;append&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;row_data&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-
-&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;There are {0} records - each record having {1} fields:&lt;/span&gt;&lt;span class="se"&gt;\n&lt;/span&gt;&lt;span class="s2"&gt;{2}&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;read_data&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;read_data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;]),&lt;/span&gt; &lt;span class="n"&gt;read_data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;]))&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;There are 1188 records - each record having 8 fields:
-[&amp;#39;10850871.4&amp;#39;, &amp;#39;EP&amp;#39;, &amp;#39;5ae83cdcab21763a9a6bba7d&amp;#39;, datetime.datetime(2017, 2, 21, 0, 0), &amp;#39;1&amp;#39;, &amp;#39;Reference is made to the following document(s); the numbering will be\nadhered to in the rest of the procedure.\n\nD1 WO 03/025775 A1 (WELLOGIX INC [US]) 27 March 2003 (2003-03-27)\n\nD2 us 2001/028364 A1 (FREDELL THOMAS [US] ET AL) 11 October 2001\n(2001-10-11)&amp;#39;, &amp;#39;citation&amp;#39;, None]
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;p&gt;For our classification example we need a set of tuples ("text", "classification"). We'll add the number to the start of the text.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Skip first row as that is the header&lt;/span&gt;
-&lt;span class="n"&gt;data&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;{0} {1}&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;r&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;4&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="n"&gt;r&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]),&lt;/span&gt; &lt;span class="n"&gt;r&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;6&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;r&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;read_data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;:]]&lt;/span&gt;
-&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;(&amp;#39;1 Reference is made to the following document(s); the numbering will be\nadhered to in the rest of the procedure.\n\nD1 WO 03/025775 A1 (WELLOGIX INC [US]) 27 March 2003 (2003-03-27)\n\nD2 us 2001/028364 A1 (FREDELL THOMAS [US] ET AL) 11 October 2001\n(2001-10-11)&amp;#39;, &amp;#39;citation&amp;#39;)
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Check for blank entries - this screws up the label encoding&lt;/span&gt;
-&lt;span class="p"&gt;[(&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;t&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;c&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;t&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="n"&gt;c&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="nb"&gt;enumerate&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="ow"&gt;not&lt;/span&gt; &lt;span class="n"&gt;c&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[]
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;h2&gt;Transforming the Data&lt;/h2&gt;
-&lt;p&gt;Now we need to convert our text data to a numeric equivalent.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;keras.utils&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;to_categorical&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.preprocessing&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;LabelEncoder&lt;/span&gt;
-
-&lt;span class="n"&gt;Y_class&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;d&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;d&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
-
-&lt;span class="c1"&gt;# encode class values as integers&lt;/span&gt;
-&lt;span class="n"&gt;label_e&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;LabelEncoder&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
-&lt;span class="n"&gt;label_e&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;fit&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;Y_class&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="n"&gt;encoded_Y&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;label_e&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;transform&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;Y_class&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="c1"&gt;# convert integers to dummy variables (i.e. one hot encoded)&lt;/span&gt;
-&lt;span class="n"&gt;Y&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;to_categorical&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;encoded_Y&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Our classes are now a matrix of {0}&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;Y&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;shape&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
-&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Original label: {0}; Converted label: {1}&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;Y_class&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="n"&gt;Y&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]))&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="nt"&gt;Using&lt;/span&gt; &lt;span class="nt"&gt;TensorFlow&lt;/span&gt; &lt;span class="nt"&gt;backend&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;
-
-
-&lt;span class="nt"&gt;Our&lt;/span&gt; &lt;span class="nt"&gt;classes&lt;/span&gt; &lt;span class="nt"&gt;are&lt;/span&gt; &lt;span class="nt"&gt;now&lt;/span&gt; &lt;span class="nt"&gt;a&lt;/span&gt; &lt;span class="nt"&gt;matrix&lt;/span&gt; &lt;span class="nt"&gt;of&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nt"&gt;1187&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="nt"&gt;10&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;
-&lt;span class="nt"&gt;Original&lt;/span&gt; &lt;span class="nt"&gt;label&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="nt"&gt;citation&lt;/span&gt;&lt;span class="o"&gt;;&lt;/span&gt; &lt;span class="nt"&gt;Converted&lt;/span&gt; &lt;span class="nt"&gt;label&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="cp"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt;&lt;span class="cp"&gt;]&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;label_e&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;classes_&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;array([&amp;#39;added subject matter&amp;#39;, &amp;#39;citation&amp;#39;, &amp;#39;clarity&amp;#39;, &amp;#39;formalities&amp;#39;,
-       &amp;#39;inventive step&amp;#39;, &amp;#39;novelty&amp;#39;, &amp;#39;other&amp;#39;, &amp;#39;patentability&amp;#39;,
-       &amp;#39;sufficiency&amp;#39;, &amp;#39;unity&amp;#39;], dtype=&amp;#39;&amp;lt;U20&amp;#39;)
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;keras.preprocessing.text&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;Tokenizer&lt;/span&gt;
-
-&lt;span class="n"&gt;docs&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;d&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;d&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
-
-&lt;span class="c1"&gt;# create the tokenizer&lt;/span&gt;
-&lt;span class="n"&gt;t&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;Tokenizer&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;num_words&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;2500&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="c1"&gt;# fit the tokenizer on the documents&lt;/span&gt;
-&lt;span class="n"&gt;t&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;fit_on_texts&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;docs&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-
-&lt;span class="n"&gt;X&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;t&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;texts_to_matrix&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;docs&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;mode&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;tfidf&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Our data has the following dimensionality: &amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;shape&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;An example array is: &amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;][&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;Our data has the following dimensionality:  (1187, 2500)
-An example array is:  [0.         1.78814384 0.79917757 1.54672314 0.         0.93832662
- 0.         0.89437137 1.00441907 0.         0.         0.
- 0.         1.29298663 0.         0.         0.         0.
- 0.         0.         0.         1.46439595 0.         0.
- 0.         0.         0.         0.         0.         0.
- 0.         0.         0.         0.         0.         0.
- 0.         0.         0.         0.         0.         0.
- 0.         0.         0.         0.         0.         0.
- 2.06700994 0.         0.         0.         0.         0.
- 0.         0.         0.         0.         0.         0.
- 2.10873391 0.         0.         0.         0.         0.
- 0.         0.         0.         0.         0.         0.
- 0.         0.         0.         0.         2.05192351 0.
- 0.         0.         0.         0.         0.         0.
- 0.         0.         0.         6.36750738 0.         2.38799797
- 0.         0.         0.         0.         0.         0.
- 0.         0.         0.         0.        ]
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;numpy&lt;/span&gt; &lt;span class="kn"&gt;as&lt;/span&gt; &lt;span class="nn"&gt;np&lt;/span&gt;
-&lt;span class="c1"&gt;# Convert one hot to target integer&lt;/span&gt;
-&lt;span class="n"&gt;Y_integers&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;np&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;argmax&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;Y&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;axis&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;h2&gt;Try Some Classifiers&lt;/h2&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.naive_bayes&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;MultinomialNB&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.dummy&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;DummyClassifier&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.model_selection&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;cross_val_score&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;scores&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;cross_val_score&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;DummyClassifier&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;random_state&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y_integers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;cv&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;10&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
-        &lt;span class="s2"&gt;&amp;quot;Random Classifier has an average classification accuracy of {0:.2f}% ({1:.2f}%)&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
-            &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;mean&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; 
-            &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;std&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;
-        &lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;p&gt;Warning: The least populated class in y has only 9 members, which is too few. The minimum number of members in any class cannot be less than n_splits=10.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;Random Classifier has an average classification accuracy of 18.98% (3.46%)
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;p&gt;As expected we also have a warning that our "sufficiency" class doesn't have enough data points!&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;itertools&lt;/span&gt;
-&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;numpy&lt;/span&gt; &lt;span class="kn"&gt;as&lt;/span&gt; &lt;span class="nn"&gt;np&lt;/span&gt;
-&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;matplotlib.pyplot&lt;/span&gt; &lt;span class="kn"&gt;as&lt;/span&gt; &lt;span class="nn"&gt;plt&lt;/span&gt;
-
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.model_selection&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;train_test_split&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.metrics&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;confusion_matrix&lt;/span&gt;
-
-&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;plot_confusion_matrix&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;classes&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
-                          &lt;span class="n"&gt;normalize&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="bp"&gt;False&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
-                          &lt;span class="n"&gt;title&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Confusion matrix&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
-                          &lt;span class="n"&gt;cmap&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Blues&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
-    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
-&lt;span class="sd"&gt;    This function prints and plots the confusion matrix.&lt;/span&gt;
-&lt;span class="sd"&gt;    Normalization can be applied by setting `normalize=True`.&lt;/span&gt;
-&lt;span class="sd"&gt;    &amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
-    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;normalize&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
-        &lt;span class="n"&gt;cm&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;astype&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;float&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt; &lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sum&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;axis&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;)[:,&lt;/span&gt; &lt;span class="n"&gt;np&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;newaxis&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;
-        &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Normalized confusion matrix&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="k"&gt;else&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
-        &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Confusion matrix, without normalization&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-
-    &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-
-    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;imshow&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;interpolation&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;nearest&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;cmap&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;cmap&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;title&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;title&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;colorbar&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
-    &lt;span class="n"&gt;tick_marks&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;np&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;arange&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;classes&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
-    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;xticks&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tick_marks&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;classes&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;rotation&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;45&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;yticks&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tick_marks&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;classes&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-
-    &lt;span class="n"&gt;fmt&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;.1f&amp;#39;&lt;/span&gt; &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;normalize&lt;/span&gt; &lt;span class="k"&gt;else&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;d&amp;#39;&lt;/span&gt;
-    &lt;span class="n"&gt;thresh&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;max&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt; &lt;span class="mf"&gt;2.&lt;/span&gt;
-    &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;j&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;itertools&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;product&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;range&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;shape&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]),&lt;/span&gt; &lt;span class="nb"&gt;range&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;shape&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;])):&lt;/span&gt;
-        &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;text&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;j&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;j&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="n"&gt;fmt&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;
-                 &lt;span class="n"&gt;horizontalalignment&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;center&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
-                 &lt;span class="n"&gt;color&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;white&amp;quot;&lt;/span&gt; &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;j&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;&amp;gt;&lt;/span&gt; &lt;span class="n"&gt;thresh&lt;/span&gt; &lt;span class="k"&gt;else&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;black&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-
-    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;tight_layout&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
-    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;ylabel&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;True label&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;xlabel&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Predicted label&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;matplotlib&lt;/span&gt;
-&lt;span class="n"&gt;matplotlib&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;rcParams&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;update&lt;/span&gt;&lt;span class="p"&gt;({&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;font.size&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="mi"&gt;22&lt;/span&gt;&lt;span class="p"&gt;})&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;NBclassifier&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;MultinomialNB&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
-&lt;span class="n"&gt;scores&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;cross_val_score&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;NBclassifier&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y_integers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;cv&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;10&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
-        &lt;span class="s2"&gt;&amp;quot;Naive Bayes Classifier has an average classification accuracy of {0:.2f} ({1:.2f})&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
-            &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;mean&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; 
-            &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;std&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;
-        &lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;Warning&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="n"&gt;The&lt;/span&gt; &lt;span class="n"&gt;least&lt;/span&gt; &lt;span class="n"&gt;populated&lt;/span&gt; &lt;span class="kd"&gt;class&lt;/span&gt; &lt;span class="k"&gt;in&lt;/span&gt; &lt;span class="n"&gt;y&lt;/span&gt; &lt;span class="n"&gt;has&lt;/span&gt; &lt;span class="n"&gt;only&lt;/span&gt; &lt;span class="mi"&gt;9&lt;/span&gt; &lt;span class="n"&gt;members&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="n"&gt;which&lt;/span&gt; &lt;span class="k"&gt;is&lt;/span&gt; &lt;span class="n"&gt;too&lt;/span&gt; &lt;span class="n"&gt;few&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt; &lt;span class="n"&gt;The&lt;/span&gt; &lt;span class="n"&gt;minimum&lt;/span&gt; &lt;span class="n"&gt;number&lt;/span&gt; &lt;span class="n"&gt;of&lt;/span&gt; &lt;span class="n"&gt;members&lt;/span&gt; &lt;span class="k"&gt;in&lt;/span&gt; &lt;span class="n"&gt;any&lt;/span&gt; &lt;span class="kd"&gt;class&lt;/span&gt; &lt;span class="n"&gt;cannot&lt;/span&gt; &lt;span class="n"&gt;be&lt;/span&gt; &lt;span class="n"&gt;less&lt;/span&gt; &lt;span class="n"&gt;than&lt;/span&gt; &lt;span class="n"&gt;n_splits&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;10&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;
-  &lt;span class="o"&gt;%&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="n"&gt;min_groups&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="n"&gt;self&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="na"&gt;n_splits&lt;/span&gt;&lt;span class="o"&gt;)),&lt;/span&gt; &lt;span class="n"&gt;Warning&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;
-
-
-&lt;span class="n"&gt;Naive&lt;/span&gt; &lt;span class="n"&gt;Bayes&lt;/span&gt; &lt;span class="n"&gt;Classifier&lt;/span&gt; &lt;span class="n"&gt;has&lt;/span&gt; &lt;span class="n"&gt;an&lt;/span&gt; &lt;span class="n"&gt;average&lt;/span&gt; &lt;span class="n"&gt;classification&lt;/span&gt; &lt;span class="n"&gt;accuracy&lt;/span&gt; &lt;span class="n"&gt;of&lt;/span&gt; &lt;span class="mf"&gt;63.08&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="mf"&gt;4.88&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;p&gt;This seems suprisingly similar to our previous task, where we had a classification accuracy of around 60%.&lt;/p&gt;
-&lt;p&gt;Let's have a closer look at how the classifier is being applied.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;X_train&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;X_test&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;y_train&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;y_test&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;train_test_split&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y_integers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;random_state&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-
-&lt;span class="n"&gt;NB_y_pred&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;NBclassifier&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;fit&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;X_train&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;y_train&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;predict&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;X_test&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="n"&gt;NB_cnf_matrix&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;confusion_matrix&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;y_test&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;NB_y_pred&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="n"&gt;np&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;set_printoptions&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;precision&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-
-&lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;figure&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;figsize&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;20&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;20&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
-&lt;span class="n"&gt;plot_confusion_matrix&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;NB_cnf_matrix&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;classes&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;label_e&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;classes_&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;normalize&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="bp"&gt;True&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
-                      &lt;span class="n"&gt;title&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Confusion matrix for NB Classifier, with normalization&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-
-&lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;show&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;Normalized confusion matrix
-[[ 50.     0.     0.     0.    16.67   0.    33.33   0.     0.     0.  ]
- [  0.   100.     0.     0.     0.     0.     0.     0.     0.     0.  ]
- [  3.45   0.    79.31   3.45   3.45   3.45   6.9    0.     0.     0.  ]
- [  0.     0.     0.   100.     0.     0.     0.     0.     0.     0.  ]
- [  1.83   0.     2.75   0.    71.56  11.01   2.75   5.5    4.59   0.  ]
- [  0.     0.     3.57   0.    17.86  60.71   7.14   7.14   0.     3.57]
- [  6.25   0.     4.69   3.12  12.5   10.94  53.12   7.81   1.56   0.  ]
- [  0.     0.     0.     0.    10.     0.     0.    90.     0.     0.  ]
- [  0.     0.     0.     0.     0.     0.     0.     0.   100.     0.  ]
- [  0.     0.    16.67   0.    16.67   0.     0.     0.     0.    66.67]]
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/CC_6_output_24_1.resized.png"&gt;&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Lets also try the Multi-layer Perceptron&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.neural_network&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;MLPClassifier&lt;/span&gt;
-
-&lt;span class="n"&gt;MLPclassifier&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;MLPClassifier&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
-&lt;span class="n"&gt;scores&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;cross_val_score&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;MLPclassifier&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y_integers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;cv&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;10&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
-        &lt;span class="s2"&gt;&amp;quot;MLP Classifier has an average classification accuracy of {0:.2f} ({1:.2f})&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
-            &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;mean&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; 
-            &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;std&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;
-        &lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="p"&gt;)&lt;/span&gt;
-
-&lt;span class="n"&gt;X_train&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;X_test&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;y_train&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;y_test&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;train_test_split&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y_integers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;random_state&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-
-&lt;span class="n"&gt;MLP_y_pred&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;MLPclassifier&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;fit&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;X_train&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;y_train&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;predict&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;X_test&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="n"&gt;MLP_cnf_matrix&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;confusion_matrix&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;y_test&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;MLP_y_pred&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="n"&gt;np&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;set_printoptions&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;precision&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-
-&lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;figure&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;figsize&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;20&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;20&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
-&lt;span class="n"&gt;plot_confusion_matrix&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;MLP_cnf_matrix&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;classes&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;label_e&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;classes_&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;normalize&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="bp"&gt;True&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
-                      &lt;span class="n"&gt;title&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Confusion matrix for MLP Classifier, with normalization&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-
-&lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;show&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;MLP Classifier has an average classification accuracy of 70.70 (4.68)
-Normalized confusion matrix
-[[ 50.     0.    16.67   0.    16.67   0.    16.67   0.     0.     0.  ]
- [  0.   100.     0.     0.     0.     0.     0.     0.     0.     0.  ]
- [  0.     0.    82.76   0.     6.9    3.45   6.9    0.     0.     0.  ]
- [  0.     0.     0.   100.     0.     0.     0.     0.     0.     0.  ]
- [  0.     0.     4.59   0.    79.82   3.67  10.09   1.83   0.     0.  ]
- [  0.     0.     0.     0.    17.86  64.29  14.29   3.57   0.     0.  ]
- [  1.56   0.     3.12   1.56  18.75   1.56  71.88   1.56   0.     0.  ]
- [  0.     0.     0.     0.    15.     0.     5.    80.     0.     0.  ]
- [  0.     0.     0.     0.     0.     0.     0.     0.   100.     0.  ]
- [  0.     0.    16.67   0.    33.33   0.    33.33   0.     0.    16.67]]
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/CC_6_output_25_2.resized.png"&gt;&lt;/p&gt;
-&lt;h2&gt;Comments on Results&lt;/h2&gt;
-&lt;p&gt;These are fairly good results out-of-the-box.&lt;/p&gt;
-&lt;p&gt;I think the main improvements would come from:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;cleaner data; &lt;/li&gt;
-&lt;li&gt;more data;&lt;/li&gt;
-&lt;li&gt;more consistent labelling.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;This also does not take account of the fact that objections are often presented in numbered lists with a hierarchical structure. We can use this as a form of ensemble classifier.&lt;/p&gt;</content><category term="bonus"></category></entry><entry><title>2. Classifying Claims - Preparing the Data</title><link href="https://benhoyle.github.io/part-2-classifying-claims-getting-the-data.html" rel="alternate"></link><published>2018-04-04T09:16:00+01:00</published><updated>2018-04-04T09:16:00+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-04-04:/part-2-classifying-claims-getting-the-data.html</id><summary type="html">&lt;p&gt;This post looks at how we prepare the data for our claim classification example.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;2. Classifying Claims - Preparing the Data&lt;/h1&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Practical Machine Learning Adventures - Claim Classification</title><link href="https://benhoyle.github.io/" rel="alternate"></link><link href="https://benhoyle.github.io/feeds/claim-classification.atom.xml" rel="self"></link><id>https://benhoyle.github.io/</id><updated>2018-06-21T10:02:55+01:00</updated><entry><title>2. Classifying Claims - Preparing the Data</title><link href="https://benhoyle.github.io/part-2-classifying-claims-getting-the-data.html" rel="alternate"></link><published>2018-06-21T10:02:55+01:00</published><updated>2018-06-21T10:02:55+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-21:/part-2-classifying-claims-getting-the-data.html</id><summary type="html">&lt;p&gt;This post looks at how we prepare the data for our claim classification example.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;2. Classifying Claims - Preparing the Data&lt;/h1&gt;
 &lt;p&gt;In the previous post we looked at the problem for our current project: how to assign an IPC/CPC Section to a first claim of a patent application.&lt;/p&gt;
 &lt;p&gt;In this post we will look at the steps required to prepare some data for our machine learning algorithms. These steps roughly follow the guide &lt;a href="https://machinelearningmastery.com/how-to-prepare-data-for-machine-learning/"&gt;here&lt;/a&gt;:&lt;/p&gt;
 &lt;ul&gt;
@@ -671,150 +352,128 @@ An example array is:  [ 0.          0.          2.43021996  2.08331543  1.715706
 &lt;p&gt;Now we can save our X and Y data to load for testing a set of machine learning algorithms.&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="k"&gt;with&lt;/span&gt; &lt;span class="nb"&gt;open&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;encoded_data.pkl&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;wb&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;as&lt;/span&gt; &lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
     &lt;span class="n"&gt;pickle&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;dump&lt;/span&gt;&lt;span class="p"&gt;((&lt;/span&gt;&lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;</content><category term="preparing_data"></category></entry><entry><title>5. Classifying Claims - Reporting Results</title><link href="https://benhoyle.github.io/part-5-classifying-claims-reporting-results.html" rel="alternate"></link><published>2018-03-23T12:18:53+00:00</published><updated>2018-03-23T12:18:53+00:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-03-23:/part-5-classifying-claims-reporting-results.html</id><summary type="html">&lt;p&gt;This post looks at our results and what we have learnt from the project.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;5. Classifying Claims - Reporting Results&lt;/h1&gt;
-&lt;p&gt;Here we will look at what we have learnt during our project to classify patent claims. The aim of doing this is to consolidate what we have learnt, and practice a methodology for presenting our results.&lt;/p&gt;
-&lt;p&gt;The post &lt;a href="https://machinelearningmastery.com/how-to-use-machine-learning-results/"&gt;here&lt;/a&gt; suggests the following structure for reporting our results:&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;Context - Define and describe why we are undertaking the project;&lt;/li&gt;
-&lt;li&gt;Problem - Describe the problem we are looking to solve;&lt;/li&gt;
-&lt;li&gt;Solution - Describe the solution our results suggest;&lt;/li&gt;
-&lt;li&gt;Findings - Present our results;&lt;/li&gt;
-&lt;li&gt;Limitations - Present the limitations we uncovered; and&lt;/li&gt;
-&lt;li&gt;Conclusions - Revisit and summarise the context, problem and solution (or why, question and answer)&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;We will look at these one by one.&lt;/p&gt;
-&lt;hr&gt;
-&lt;h2&gt;1. Context&lt;/h2&gt;
-&lt;p&gt;As described in our first post, the project was undertaken to practice applying a methodical approach to real-world patent data. &lt;/p&gt;
-&lt;p&gt;Within the world of patent law, we have sets of patent claims, which set out the scope of legal protection. These claims, as they are contained in a patent application, are assigned a patent classification, which is a hierarchical code that categorises the subject-matter of the claims. &lt;/p&gt;
-&lt;p&gt;Patent specifications are published and made available for download in bulk. This provides large labelled datasets we can use to practice supervised machine learning. In particular, we can extract a main independent claim and an International Patent Classification (IPC) code as data for machine learning algorithms. To simplify things, we can start with the first letter of the IPC code, which assigns each patent application to one of eight classes.&lt;/p&gt;
-&lt;hr&gt;
-&lt;h2&gt;2. Problem&lt;/h2&gt;
-&lt;p&gt;The problem we are looking to solve is to develop a machine learning algorithm that, given the text of a patent claim, can predict the first letter of the IPC code, i.e. the first level of subject matter classification.&lt;/p&gt;
-&lt;hr&gt;
-&lt;h2&gt;3. Solution&lt;/h2&gt;
-&lt;p&gt;Our results indicate that one of a non-linear Support Vector Machine (SVM), a multi-layer perceptron (MLP) or a Naive Bayes classifier would be the best at performing this task. &lt;/p&gt;
-&lt;p&gt;For a production solution, it appears preferable to use a Naive Bayes classifier despite the SVM and MLP outperforming this classifier by 2-3%. This is because the Naive Bayes classifier is much more efficient: it is the quickest of the three to train and does not require a large number of parameters. It also has good characteristics, such as performing better at classifying certain classes than the MLP.&lt;/p&gt;
-&lt;p&gt;From our results it does not seem possible to implement an accurate classifier for this problem. The best solutions return an accuracy of around 60%. While better than chance given the proportions of the data (~20%) this is still not necessarily high enough to confidently apply a classifier in a processing pipeline, e.g. to differentially process the text of the patent claim. &lt;/p&gt;
-&lt;p&gt;It would, though, appear possible to provide probabilities for classes that could support human decision making.   &lt;/p&gt;
-&lt;hr&gt;
-&lt;h2&gt;4. Findings&lt;/h2&gt;
-&lt;p&gt;Our finding will be split into three sections:
-1. Findings regarding the nature of the problem and the data;
-2. Findings regarding suitable machine learning algorithms; and
-3. Findings regarding specific algorithms.&lt;/p&gt;
-&lt;h3&gt;4.1 Findings regarding the nature of the problem and the data&lt;/h3&gt;
-&lt;p&gt;A general finding was that changes in algorithms, parameters, and model archectures only led to small improvements in accuracy (e.g. often along the lines of 1-2%). Generally, the best classification accuracy was fixed at around 60%.&lt;/p&gt;
-&lt;p&gt;Changing the form of the data had suprisingly little effect. &lt;/p&gt;
-&lt;p&gt;Term Frequency - Inverse Document Frequency (TD-IDF) was the best metric for generating a bag of words. However, using word presence (i.e. a binary variable) or word count only reduced classification accuracy by 1-2%. This improvement is close to the bounds of natural variance. As such, a Naive Bayes implementation that uses a binary count could be used if processing resources were limited (e.g. within embedded systems). It should be noted that normalising by the sequence length appeared to corrupt Naive Bayes classification.&lt;/p&gt;
-&lt;p&gt;I imagined that increasing our number of data samples would provide a reasonably large improvement. However, this was not the case - nearly doubling our number of data samples again only provided a 1-2% increase. This improvement is again close to the bounds of natural variance. This suggests that our low accuracy value may be due to the nature of the classification distributions, e.g. it may be dragged down by poor performance on infrequent classes. This is also consistent with the reasonably good performance of the Naive Bayes classifier below.&lt;/p&gt;
-&lt;p&gt;Similarly, doubling our vocabulary did not have a significant effect on performance, again only increasing accuracy by 1-2%. This indicates that a production system could trade-off accuracy for vocabulary size.&lt;/p&gt;
-&lt;p&gt;As the TD-IDF metric is already normalised, subtracting the mean and dividing by the variance did not improve performance.&lt;/p&gt;
-&lt;h3&gt;4.2 Findings regarding suitable machine learning algorithms&lt;/h3&gt;
-&lt;h4&gt;Spot Check Results&lt;/h4&gt;
-&lt;p&gt;The results of our spot-checks were as follows:&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;Classifer&lt;/th&gt;
-&lt;th align="center"&gt;Accuracy&lt;/th&gt;
-&lt;th align="center"&gt;SD&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;Non-Linear Support Vector Machine&lt;/td&gt;
-&lt;td align="center"&gt;62.52 %&lt;/td&gt;
-&lt;td align="center"&gt;0.80 %&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;MultiLayer Perceptron&lt;/td&gt;
-&lt;td align="center"&gt;61.20 %&lt;/td&gt;
-&lt;td align="center"&gt;0.54 %&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Naive Bayes&lt;/td&gt;
-&lt;td align="center"&gt;58.90 %&lt;/td&gt;
-&lt;td align="center"&gt;1.12 %&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Stochastic Gradient Descent&lt;/td&gt;
-&lt;td align="center"&gt;56.79 %&lt;/td&gt;
-&lt;td align="center"&gt;0.75 %&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Random Forest&lt;/td&gt;
-&lt;td align="center"&gt;50.01 %&lt;/td&gt;
-&lt;td align="center"&gt;1.17 %&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Decision Trees&lt;/td&gt;
-&lt;td align="center"&gt;47.33 %&lt;/td&gt;
-&lt;td align="center"&gt;0.52 %&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Ada Boost&lt;/td&gt;
-&lt;td align="center"&gt;34.34 %&lt;/td&gt;
-&lt;td align="center"&gt;1.31 %&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;kNearest Neighbours&lt;/td&gt;
-&lt;td align="center"&gt;30.15 %&lt;/td&gt;
-&lt;td align="center"&gt;2.74 %&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Random Choice&lt;/td&gt;
-&lt;td align="center"&gt;20.14 %&lt;/td&gt;
-&lt;td align="center"&gt;0.13 %&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;p&gt;Here we see that our best performing algorithm is the non-linear Support Vector Machine (SVM). SVMs are known to work well on sparse data of high dimensionality. This is the case for us and our results support that finding.&lt;/p&gt;
-&lt;p&gt;Tree and cluster based methods generally do not perform as well.&lt;/p&gt;
-&lt;p&gt;However, the training time for the non-linear SVM in scikit-learn (based on libsvm) is very long, much longer than either the MLP or the Naive Bayes classifier. The Naive Bayes classifier is one of the quickest, taking only a few seconds, compared to tens of minutes for the MLP and up to an hour for the SVM. &lt;/p&gt;
-&lt;h4&gt;Comparing Predictions&lt;/h4&gt;
-&lt;p&gt;It was interesting to compare how our Naive Bayes and MLP classifiers were predicting categories.&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4a_output_19_1.png"&gt; &lt;img alt="png" src="https://benhoyle.github.io/images/4a_output_19_2.png"&gt;&lt;/p&gt;
-&lt;p&gt;The Naive Bayes classifier struggled on class A - often confusing it with class C. However, it out-performs the MLP classifier on classes C, E, F and G -  a majority of the classes.&lt;/p&gt;
-&lt;p&gt;The MLP classifier obtains a higher classification accuracy by outperforming on classes A and H. Indeed it looks like the misclassification of class A by the Naive Bayes classifier was the main reason for it having an overal accuracy below the MLP.&lt;/p&gt;
-&lt;p&gt;This is one reason why the Naives Bayes classifier may actually be better in production despite having a headline accuracy below the MLP.&lt;/p&gt;
-&lt;p&gt;It was disappointing to see that an ensemble classifier did not seem to capitalise on the relative strengths of both classifiers, at least in terms of overall classification accuracy.  &lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4a_output_27_2.png"&gt;&lt;/p&gt;
-&lt;p&gt;The Naive Bayes brings down the performance of the ensemble classifier for classes A and H, despite increasing the accuracy for the other classes. This suggests that the Naive Bayes classifiers may be assigning fairly high incorrect probabilities for classes A and H, such that a hard or soft vote still goes with the missclassification.&lt;/p&gt;
-&lt;p&gt;Ensemble classifiers appear a fruitful area for further investigation. For example, it may be that be adjusting the weightings of the ensemble we can avoid the degnerative performance for classes A and H.&lt;/p&gt;
-&lt;h3&gt;4.3 Findings regarding specific algorithms&lt;/h3&gt;
-&lt;p&gt;While the non-linear SVM provided the best performance, it's long training time made it difficult to experiment with. The Naive Bayes classifier has only one tuneable parameter (alpha relating to a level of smoothing). Adjusting this parameter had no real significant affect. Attention was thus focussed on the MLP classifer. To have access to more aspects of configuration we moved to use Keras.&lt;/p&gt;
-&lt;h4&gt;Overfitting&lt;/h4&gt;
-&lt;p&gt;A key finding in this project was the importance of regularisation to avoid overfitting.&lt;/p&gt;
-&lt;p&gt;Our simple one layer neural network suffered greatly from overfitting on the data.&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_11_1.png"&gt; &lt;img alt="png" src="https://benhoyle.github.io/images/output_11_2.png"&gt;&lt;/p&gt;
-&lt;p&gt;As can be seen in these graphs, within a few epochs our network has a near 100% accuracy as it learns to overfit on the supplied data. Considering that we have 10,000 data samples and, due to the high dimensionality input, our model has 2.5 million parameters, it is easy to see how overfitting could occur - i.e. there are many more parameters than samples so our network can simply learn to memorise each sample. &lt;/p&gt;
-&lt;p&gt;Overfitting leads to poor performance on validation datasets, i.e. data that is not used to train the neural network. This is most visible in the graph of model loss: while model loss reduces during training for the training data it &lt;em&gt;increases&lt;/em&gt; for the test data set, i.e. we perform worse on our test data as our model overfits on our training data.&lt;/p&gt;
-&lt;p&gt;Two techniques are recommended for overfitting: Dropout and Regularisation. In our case it turned out that Regularisation was more effective, and that a combination of moderate amounts of both Dropout and Regularisation acted to align training and test performance. For example L2 regularisation with a lambda value of 0.05 and Dropout between layers of around 0.2-0.25 worked well.&lt;/p&gt;
-&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4C_output_20_1.png"&gt; &lt;img alt="png" src="https://benhoyle.github.io/images/4C_output_20_2.png"&gt;&lt;/p&gt;
-&lt;p&gt;However, even in this case, performance quickly saturates and additional trainings does not do much to increase our accuracy or reduce our loss. &lt;/p&gt;
-&lt;p&gt;This is consistent with our other results - it suggests that there are certain easily discernable rules for work for 60-80% of class classifications, but that beyond that there are no absolute rules and that certain claims cannot be predictable assigned a class. &lt;/p&gt;
-&lt;h4&gt;Architectures&lt;/h4&gt;
-&lt;p&gt;Moving to deeper and more complex neural network did not significantly improve accuracy. This is an important lesson - there are many different possible architectures we can explore, but ultimately we are dependent on the form of our data.&lt;/p&gt;
-&lt;hr&gt;
-&lt;h2&gt;5. Limitations&lt;/h2&gt;
-&lt;p&gt;There seemed to be a natural limit of around 60% to classifier performance. Here are some ideas for why this may be:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;The claims do not contain enough information. This may especially be the case for particularly broad claims. We need to also look at the text of the detailed description.&lt;/li&gt;
-&lt;li&gt;A number of different classifications may be assigned to a patent application. For example, often claims may be classified in both categories G and H. As such the models may be accurate predicting another of the classifications but incorrectly predicting the chosen single category.&lt;/li&gt;
-&lt;li&gt;Classifications may be assigned by human beings who are not necessarily consistent. Hence, there may be contradictions in our data.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;A number of other limitations were uncovered:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;Computing resources limited the effectiveness of our most accurate classifier.&lt;/li&gt;
-&lt;li&gt;Overfitting limited the performance of our neural network models - this was partially mitigated using Dropout and regularisation.&lt;/li&gt;
-&lt;li&gt;The compressed XML archives of patent data make it difficult to quickly access large amounts of data - when trying to process 20,000 patent documents, we had errors after processing 19,000. It may be that there are other datasets we can use, such as Google's BigQuery or other downloadable preprocessed sets of claim-classification pairs.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;hr&gt;
-&lt;h2&gt;6. Conclusions&lt;/h2&gt;
-&lt;p&gt;So, how best to assign a Section to a patent claim? &lt;/p&gt;
-&lt;p&gt;It turns out that a Naive Bayes classifier is a good all-round solution. I would select this for any production system. Although SVM and neural network classifiers showed slightly better performance, as measured by overall classification accuracy, the out-of-the-box quick performance of the Naive Bayes classifier, and it's reasonable strengths on individual classes, makes me believe that this is a better solution.&lt;/p&gt;
-&lt;p&gt;Even with advanced techniques overall classification accuracy was limited to around 60%. This is still better than 20% if chosen at random. However, it suggests that we cannot implement a deterministic system that makes decisions based on programmatically assigned Sections. We may thus need to shift our perspective, e.g. could we show suggested Sections, together with probabilities to help human decision making, or offer a "confirm Section" option that allows the over-riding of the missclassification of certain Sections. &lt;/p&gt;</content><category term="reporting_results"></category></entry><entry><title>4. Classifying Claims - Improving Results</title><link href="https://benhoyle.github.io/part-4-classifying-claims-improving-results.html" rel="alternate"></link><published>2018-03-23T10:19:19+00:00</published><updated>2018-03-23T10:19:19+00:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-03-23:/part-4-classifying-claims-improving-results.html</id><summary type="html">&lt;p&gt;This post looks at how we can improve our initial results.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;4. Classifying Claims - Improving Results&lt;/h1&gt;
+&lt;/pre&gt;&lt;/div&gt;</content><category term="preparing_data"></category></entry><entry><title>3. Classifying Claims - Spot-Checking Algorithms</title><link href="https://benhoyle.github.io/part-3-classifying-claims-spot-checking-algorithms.html" rel="alternate"></link><published>2018-06-21T10:02:55+01:00</published><updated>2018-06-21T10:02:55+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-21:/part-3-classifying-claims-spot-checking-algorithms.html</id><summary type="html">&lt;p&gt;This post looks at how we can perform initial spot testing of machine learning algorithms.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;3. Classifying Claims - Spot-Checking Algorithms&lt;/h1&gt;
+&lt;p&gt;Now we have our claim data and Section labels in numeric form, we can start evaluating different machine learning algorithms to get a feel for what may or may not work. A good method to apply is described &lt;a href="https://machinelearningmastery.com/how-to-evaluate-machine-learning-algorithms/"&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;At this stage we want to determine some baseline results and apply vanilla implementations of common algorithms. From this we can choose one or two algorithms to investigate further. &lt;/p&gt;
+&lt;h2&gt;Loading Our Data&lt;/h2&gt;
+&lt;p&gt;We can load our X and Y as saved in part 2.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;pickle&lt;/span&gt;
+&lt;span class="k"&gt;with&lt;/span&gt; &lt;span class="nb"&gt;open&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;encoded_data.pkl&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;rb&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;as&lt;/span&gt; &lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Loading data&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;pickle&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;load&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;{0} claims and {1} classifications loaded&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;Y&lt;/span&gt;&lt;span class="p"&gt;)))&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;Loading data
+11238 claims and 11238 classifications loaded
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h2&gt;Performance Measure&lt;/h2&gt;
+&lt;p&gt;The primary performance measure we are going to evaluate is classification accuracy, e.g. a percentage of correctly predicted classification labels. &lt;/p&gt;
+&lt;p&gt;In this project it is also useful to look at the confusion matrix. As there may be some overlap between classes, this may be visible in the confusion matrix.&lt;/p&gt;
+&lt;h2&gt;Cross Validation&lt;/h2&gt;
+&lt;p&gt;We will be applying 5-fold cross validation. This will train the classifier on 80% of the data, and test on the remaining 20%, providing an average measure for classification accuracy across 5 repetitions with different samples in each split. (10-fold cross validation would be slightly better but this was taking slightly too long on my old desktop machine.)&lt;/p&gt;
+&lt;p&gt;scikit-learn has a &lt;a href="http://scikit-learn.org/stable/modules/cross_validation.html"&gt;module&lt;/a&gt; for applying k-fold cross validation. When the cv parameter is set to 5 this will run 5-fold validation. This can also be used with keras as explained in section 7 &lt;a href="https://machinelearningmastery.com/multi-class-classification-tutorial-keras-deep-learning-library/"&gt;here&lt;/a&gt;. &lt;/p&gt;
+&lt;p&gt;We also want to set a random seed for reproducibility (so the same random numbers are generated on repetitions of the classification).&lt;/p&gt;
+&lt;h2&gt;Algorithm Selection&lt;/h2&gt;
+&lt;p&gt;We will start with 5-10 different algorithms. We need algorithms adapted for supervised multi-class classification. Luckily scikit-learn provides a &lt;a href="http://scikit-learn.org/stable/modules/multiclass.html#multiclass"&gt;handy list&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;For the present problem these will include:
+- random selection (for use as a baseline);
+- naive Bayes;
+- logistic regression;
+- k-Nearest Neighbour classifier with k=8;
+- multi-layer perceptron;
+- support vector machines;
+- decision tree classifier; and
+- random-forest classifier.&lt;/p&gt;
+&lt;p&gt;This &lt;a href="http://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html"&gt;example&lt;/a&gt; from scikit-learn may be useful.&lt;/p&gt;
+&lt;h2&gt;Applying the Algorithms&lt;/h2&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;numpy&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.model_selection&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;cross_val_score&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.dummy&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;DummyClassifier&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.naive_bayes&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;MultinomialNB&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.neighbors&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;KNeighborsClassifier&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.linear_model&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;SGDClassifier&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.neural_network&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;MLPClassifier&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.gaussian_process&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;GaussianProcessClassifier&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.gaussian_process.kernels&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;RBF&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.tree&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;DecisionTreeClassifier&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.ensemble&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;RandomForestClassifier&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;AdaBoostClassifier&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.svm&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;SVC&lt;/span&gt;
+
+&lt;span class="n"&gt;classifiers&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;
+    &lt;span class="n"&gt;DummyClassifier&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;random_state&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;7&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;
+    &lt;span class="n"&gt;MultinomialNB&lt;/span&gt;&lt;span class="p"&gt;(),&lt;/span&gt;
+    &lt;span class="n"&gt;KNeighborsClassifier&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;n_neighbors&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;8&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;
+    &lt;span class="n"&gt;SGDClassifier&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;max_iter&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;tol&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="bp"&gt;None&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;
+    &lt;span class="n"&gt;MLPClassifier&lt;/span&gt;&lt;span class="p"&gt;(),&lt;/span&gt;
+    &lt;span class="n"&gt;DecisionTreeClassifier&lt;/span&gt;&lt;span class="p"&gt;(),&lt;/span&gt;
+    &lt;span class="n"&gt;RandomForestClassifier&lt;/span&gt;&lt;span class="p"&gt;(),&lt;/span&gt;
+    &lt;span class="n"&gt;AdaBoostClassifier&lt;/span&gt;&lt;span class="p"&gt;(),&lt;/span&gt;
+    &lt;span class="n"&gt;SVC&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# We can use the class name to work out each&lt;/span&gt;
+&lt;span class="n"&gt;classifiers&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="vm"&gt;__class__&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="vm"&gt;__name__&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&amp;#39;DummyClassifier&amp;#39;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;results&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;list&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;span class="c1"&gt;# Convert one hot to target integer&lt;/span&gt;
+&lt;span class="n"&gt;Y_integers&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;numpy&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;argmax&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;Y&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;axis&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;clf&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;classifiers&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="n"&gt;name&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;clf&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="vm"&gt;__class__&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="vm"&gt;__name__&lt;/span&gt;
+    &lt;span class="n"&gt;scores&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;cross_val_score&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;clf&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y_integers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;cv&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;results&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;append&lt;/span&gt;&lt;span class="p"&gt;((&lt;/span&gt;
+        &lt;span class="n"&gt;name&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; 
+        &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;mean&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; 
+        &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;std&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;
+    &lt;span class="p"&gt;))&lt;/span&gt;
+
+    &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
+        &lt;span class="s2"&gt;&amp;quot;Classifier {0} has an average classification accuracy of {1:.2f} ({2:.2f})&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
+            &lt;span class="n"&gt;name&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; 
+            &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;mean&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; 
+            &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;std&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;
+        &lt;span class="p"&gt;)&lt;/span&gt;    
+    &lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Results&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;Classifier DummyClassifier has an average classification accuracy of 20.14 (0.13)
+Classifier MultinomialNB has an average classification accuracy of 58.90 (1.12)
+Classifier KNeighborsClassifier has an average classification accuracy of 30.15 (2.74)
+Classifier SGDClassifier has an average classification accuracy of 56.79 (0.75)
+Classifier MLPClassifier has an average classification accuracy of 61.20 (0.54)
+Classifier DecisionTreeClassifier has an average classification accuracy of 47.33 (0.52)
+Classifier RandomForestClassifier has an average classification accuracy of 50.01 (1.17)
+Classifier AdaBoostClassifier has an average classification accuracy of 34.34 (1.31)
+Classifier SVC has an average classification accuracy of 62.52 (0.80)
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Gaussian process led to a memory error so we left that one out.&lt;/p&gt;
+&lt;h2&gt;Observations&lt;/h2&gt;
+&lt;p&gt;Our baseline - making a random choice based on the different proportions of labels available is around 20% accuracy, i.e. if we guess randomly we still correctly classify the claims 1 time out of 5. &lt;/p&gt;
+&lt;p&gt;The k-Nearest Neighbours classifier does quite poorly. This indicates that clear groups within the TD-IDF vector space do not exist. The AdaBoost classifier has a comparative performance at around 35% accuracy. It would thus seem sensible to exclude these classifiers at this stage.&lt;/p&gt;
+&lt;p&gt;Tree-based classifiers - Decision Trees and Random Forest Classifiers - do a little better with around 50% accuracy. Random Forests appear to provide a small improvement (~ 3%) over Decision Trees. However, these are around 10% below the next set of classifiers, so again we will exclude these classifiers at this stage.&lt;/p&gt;
+&lt;p&gt;This leaves four classifiers with accuracies of around 60%: Naive Bayes (MultinomialNB), a Linear Support Vector Machine (SVM) trained with Stochastic Gradient Descent (SGDClassifier), an SVM with a radial basis function (RBF) kernel (SVC) and an Multi-Layer Perceptron (MLPClassifier). By comparing the linear SVM and MLP we can see that adding hidden layers to a linear model provides an improvement of around 4%. Also the SVC classifier scores highly, better than the linear SVM. It thus seems sensible to look at neural networks with hidden layers over linear regression models. The multinomial Naive Bayes classifier works surprisingly well, and slightly out-peforms the linear SVM. &lt;/p&gt;
+&lt;p&gt;From these results it looks like deep-learning, i.e. multilayer neural networks could provide a good result. We will thus investigate these methods in more detail in the next post. It would also be worth varying some parameters of the SVC classifier to see if we can improve accuracy (although training time may be an issue).&lt;/p&gt;
+&lt;p&gt;As Bayesian methods come at things from a quite different perspective, it may also be worth investigating whether we can obtain any improvement over the Naive Bayes approach. &lt;/p&gt;
+&lt;h3&gt;An Aside on Classification History&lt;/h3&gt;
+&lt;p&gt;The results of this spot-check experiment rather nicely match the historic development of supervised classification algorithms. &lt;/p&gt;
+&lt;p&gt;Before recent developments in deep-learning, linear classifiers such as linear SVMs offered the best performance. Bayesian methods then offered an alternative set of classifiers with a similar performance. Many early spam filters used Naive Bayes classifiers. &lt;/p&gt;
+&lt;p&gt;The recent improvements in deep-learning offer the potential for gains over the previous state-of-the-art. However, as in our case, these gains are not huge with vanilla models (less than 5%). &lt;/p&gt;</content><category term="spot_checking"></category></entry><entry><title>4. Classifying Claims - Improving Results</title><link href="https://benhoyle.github.io/part-4-classifying-claims-improving-results.html" rel="alternate"></link><published>2018-06-21T10:02:55+01:00</published><updated>2018-06-21T10:02:55+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-21:/part-4-classifying-claims-improving-results.html</id><summary type="html">&lt;p&gt;This post looks at how we can improve our initial results.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;4. Classifying Claims - Improving Results&lt;/h1&gt;
 &lt;p&gt;At this stage, we will look at taking a few of our best-performing algorithms from our previous post and attempting to increase performance. &lt;/p&gt;
 &lt;hr&gt;
 &lt;p&gt;As you may remember, the best-performing algorithms were: &lt;/p&gt;
@@ -2678,128 +2337,469 @@ Normalized confusion matrix
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4a_output_27_2.png"&gt;&lt;/p&gt;</content><category term="improving_results"></category></entry><entry><title>3. Classifying Claims - Spot-Checking Algorithms</title><link href="https://benhoyle.github.io/part-3-classifying-claims-spot-checking-algorithms.html" rel="alternate"></link><published>2018-03-22T14:26:49+00:00</published><updated>2018-03-22T14:26:49+00:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-03-22:/part-3-classifying-claims-spot-checking-algorithms.html</id><summary type="html">&lt;p&gt;This post looks at how we can perform initial spot testing of machine learning algorithms.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;3. Classifying Claims - Spot-Checking Algorithms&lt;/h1&gt;
-&lt;p&gt;Now we have our claim data and Section labels in numeric form, we can start evaluating different machine learning algorithms to get a feel for what may or may not work. A good method to apply is described &lt;a href="https://machinelearningmastery.com/how-to-evaluate-machine-learning-algorithms/"&gt;here&lt;/a&gt;.&lt;/p&gt;
-&lt;p&gt;At this stage we want to determine some baseline results and apply vanilla implementations of common algorithms. From this we can choose one or two algorithms to investigate further. &lt;/p&gt;
-&lt;h2&gt;Loading Our Data&lt;/h2&gt;
-&lt;p&gt;We can load our X and Y as saved in part 2.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;pickle&lt;/span&gt;
-&lt;span class="k"&gt;with&lt;/span&gt; &lt;span class="nb"&gt;open&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;encoded_data.pkl&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;rb&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;as&lt;/span&gt; &lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
-    &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Loading data&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;pickle&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;load&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;{0} claims and {1} classifications loaded&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;Y&lt;/span&gt;&lt;span class="p"&gt;)))&lt;/span&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4a_output_27_2.png"&gt;&lt;/p&gt;</content><category term="improving_results"></category></entry><entry><title>5. Classifying Claims - Reporting Results</title><link href="https://benhoyle.github.io/part-5-classifying-claims-reporting-results.html" rel="alternate"></link><published>2018-06-21T10:02:55+01:00</published><updated>2018-06-21T10:02:55+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-21:/part-5-classifying-claims-reporting-results.html</id><summary type="html">&lt;p&gt;This post looks at our results and what we have learnt from the project.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;5. Classifying Claims - Reporting Results&lt;/h1&gt;
+&lt;p&gt;Here we will look at what we have learnt during our project to classify patent claims. The aim of doing this is to consolidate what we have learnt, and practice a methodology for presenting our results.&lt;/p&gt;
+&lt;p&gt;The post &lt;a href="https://machinelearningmastery.com/how-to-use-machine-learning-results/"&gt;here&lt;/a&gt; suggests the following structure for reporting our results:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Context - Define and describe why we are undertaking the project;&lt;/li&gt;
+&lt;li&gt;Problem - Describe the problem we are looking to solve;&lt;/li&gt;
+&lt;li&gt;Solution - Describe the solution our results suggest;&lt;/li&gt;
+&lt;li&gt;Findings - Present our results;&lt;/li&gt;
+&lt;li&gt;Limitations - Present the limitations we uncovered; and&lt;/li&gt;
+&lt;li&gt;Conclusions - Revisit and summarise the context, problem and solution (or why, question and answer)&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;We will look at these one by one.&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2&gt;1. Context&lt;/h2&gt;
+&lt;p&gt;As described in our first post, the project was undertaken to practice applying a methodical approach to real-world patent data. &lt;/p&gt;
+&lt;p&gt;Within the world of patent law, we have sets of patent claims, which set out the scope of legal protection. These claims, as they are contained in a patent application, are assigned a patent classification, which is a hierarchical code that categorises the subject-matter of the claims. &lt;/p&gt;
+&lt;p&gt;Patent specifications are published and made available for download in bulk. This provides large labelled datasets we can use to practice supervised machine learning. In particular, we can extract a main independent claim and an International Patent Classification (IPC) code as data for machine learning algorithms. To simplify things, we can start with the first letter of the IPC code, which assigns each patent application to one of eight classes.&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2&gt;2. Problem&lt;/h2&gt;
+&lt;p&gt;The problem we are looking to solve is to develop a machine learning algorithm that, given the text of a patent claim, can predict the first letter of the IPC code, i.e. the first level of subject matter classification.&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2&gt;3. Solution&lt;/h2&gt;
+&lt;p&gt;Our results indicate that one of a non-linear Support Vector Machine (SVM), a multi-layer perceptron (MLP) or a Naive Bayes classifier would be the best at performing this task. &lt;/p&gt;
+&lt;p&gt;For a production solution, it appears preferable to use a Naive Bayes classifier despite the SVM and MLP outperforming this classifier by 2-3%. This is because the Naive Bayes classifier is much more efficient: it is the quickest of the three to train and does not require a large number of parameters. It also has good characteristics, such as performing better at classifying certain classes than the MLP.&lt;/p&gt;
+&lt;p&gt;From our results it does not seem possible to implement an accurate classifier for this problem. The best solutions return an accuracy of around 60%. While better than chance given the proportions of the data (~20%) this is still not necessarily high enough to confidently apply a classifier in a processing pipeline, e.g. to differentially process the text of the patent claim. &lt;/p&gt;
+&lt;p&gt;It would, though, appear possible to provide probabilities for classes that could support human decision making.   &lt;/p&gt;
+&lt;hr&gt;
+&lt;h2&gt;4. Findings&lt;/h2&gt;
+&lt;p&gt;Our finding will be split into three sections:
+1. Findings regarding the nature of the problem and the data;
+2. Findings regarding suitable machine learning algorithms; and
+3. Findings regarding specific algorithms.&lt;/p&gt;
+&lt;h3&gt;4.1 Findings regarding the nature of the problem and the data&lt;/h3&gt;
+&lt;p&gt;A general finding was that changes in algorithms, parameters, and model archectures only led to small improvements in accuracy (e.g. often along the lines of 1-2%). Generally, the best classification accuracy was fixed at around 60%.&lt;/p&gt;
+&lt;p&gt;Changing the form of the data had suprisingly little effect. &lt;/p&gt;
+&lt;p&gt;Term Frequency - Inverse Document Frequency (TD-IDF) was the best metric for generating a bag of words. However, using word presence (i.e. a binary variable) or word count only reduced classification accuracy by 1-2%. This improvement is close to the bounds of natural variance. As such, a Naive Bayes implementation that uses a binary count could be used if processing resources were limited (e.g. within embedded systems). It should be noted that normalising by the sequence length appeared to corrupt Naive Bayes classification.&lt;/p&gt;
+&lt;p&gt;I imagined that increasing our number of data samples would provide a reasonably large improvement. However, this was not the case - nearly doubling our number of data samples again only provided a 1-2% increase. This improvement is again close to the bounds of natural variance. This suggests that our low accuracy value may be due to the nature of the classification distributions, e.g. it may be dragged down by poor performance on infrequent classes. This is also consistent with the reasonably good performance of the Naive Bayes classifier below.&lt;/p&gt;
+&lt;p&gt;Similarly, doubling our vocabulary did not have a significant effect on performance, again only increasing accuracy by 1-2%. This indicates that a production system could trade-off accuracy for vocabulary size.&lt;/p&gt;
+&lt;p&gt;As the TD-IDF metric is already normalised, subtracting the mean and dividing by the variance did not improve performance.&lt;/p&gt;
+&lt;h3&gt;4.2 Findings regarding suitable machine learning algorithms&lt;/h3&gt;
+&lt;h4&gt;Spot Check Results&lt;/h4&gt;
+&lt;p&gt;The results of our spot-checks were as follows:&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Classifer&lt;/th&gt;
+&lt;th align="center"&gt;Accuracy&lt;/th&gt;
+&lt;th align="center"&gt;SD&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Non-Linear Support Vector Machine&lt;/td&gt;
+&lt;td align="center"&gt;62.52 %&lt;/td&gt;
+&lt;td align="center"&gt;0.80 %&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;MultiLayer Perceptron&lt;/td&gt;
+&lt;td align="center"&gt;61.20 %&lt;/td&gt;
+&lt;td align="center"&gt;0.54 %&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Naive Bayes&lt;/td&gt;
+&lt;td align="center"&gt;58.90 %&lt;/td&gt;
+&lt;td align="center"&gt;1.12 %&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Stochastic Gradient Descent&lt;/td&gt;
+&lt;td align="center"&gt;56.79 %&lt;/td&gt;
+&lt;td align="center"&gt;0.75 %&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Random Forest&lt;/td&gt;
+&lt;td align="center"&gt;50.01 %&lt;/td&gt;
+&lt;td align="center"&gt;1.17 %&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Decision Trees&lt;/td&gt;
+&lt;td align="center"&gt;47.33 %&lt;/td&gt;
+&lt;td align="center"&gt;0.52 %&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Ada Boost&lt;/td&gt;
+&lt;td align="center"&gt;34.34 %&lt;/td&gt;
+&lt;td align="center"&gt;1.31 %&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;kNearest Neighbours&lt;/td&gt;
+&lt;td align="center"&gt;30.15 %&lt;/td&gt;
+&lt;td align="center"&gt;2.74 %&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Random Choice&lt;/td&gt;
+&lt;td align="center"&gt;20.14 %&lt;/td&gt;
+&lt;td align="center"&gt;0.13 %&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;Here we see that our best performing algorithm is the non-linear Support Vector Machine (SVM). SVMs are known to work well on sparse data of high dimensionality. This is the case for us and our results support that finding.&lt;/p&gt;
+&lt;p&gt;Tree and cluster based methods generally do not perform as well.&lt;/p&gt;
+&lt;p&gt;However, the training time for the non-linear SVM in scikit-learn (based on libsvm) is very long, much longer than either the MLP or the Naive Bayes classifier. The Naive Bayes classifier is one of the quickest, taking only a few seconds, compared to tens of minutes for the MLP and up to an hour for the SVM. &lt;/p&gt;
+&lt;h4&gt;Comparing Predictions&lt;/h4&gt;
+&lt;p&gt;It was interesting to compare how our Naive Bayes and MLP classifiers were predicting categories.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4a_output_19_1.png"&gt; &lt;img alt="png" src="https://benhoyle.github.io/images/4a_output_19_2.png"&gt;&lt;/p&gt;
+&lt;p&gt;The Naive Bayes classifier struggled on class A - often confusing it with class C. However, it out-performs the MLP classifier on classes C, E, F and G -  a majority of the classes.&lt;/p&gt;
+&lt;p&gt;The MLP classifier obtains a higher classification accuracy by outperforming on classes A and H. Indeed it looks like the misclassification of class A by the Naive Bayes classifier was the main reason for it having an overal accuracy below the MLP.&lt;/p&gt;
+&lt;p&gt;This is one reason why the Naives Bayes classifier may actually be better in production despite having a headline accuracy below the MLP.&lt;/p&gt;
+&lt;p&gt;It was disappointing to see that an ensemble classifier did not seem to capitalise on the relative strengths of both classifiers, at least in terms of overall classification accuracy.  &lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4a_output_27_2.png"&gt;&lt;/p&gt;
+&lt;p&gt;The Naive Bayes brings down the performance of the ensemble classifier for classes A and H, despite increasing the accuracy for the other classes. This suggests that the Naive Bayes classifiers may be assigning fairly high incorrect probabilities for classes A and H, such that a hard or soft vote still goes with the missclassification.&lt;/p&gt;
+&lt;p&gt;Ensemble classifiers appear a fruitful area for further investigation. For example, it may be that be adjusting the weightings of the ensemble we can avoid the degnerative performance for classes A and H.&lt;/p&gt;
+&lt;h3&gt;4.3 Findings regarding specific algorithms&lt;/h3&gt;
+&lt;p&gt;While the non-linear SVM provided the best performance, it's long training time made it difficult to experiment with. The Naive Bayes classifier has only one tuneable parameter (alpha relating to a level of smoothing). Adjusting this parameter had no real significant affect. Attention was thus focussed on the MLP classifer. To have access to more aspects of configuration we moved to use Keras.&lt;/p&gt;
+&lt;h4&gt;Overfitting&lt;/h4&gt;
+&lt;p&gt;A key finding in this project was the importance of regularisation to avoid overfitting.&lt;/p&gt;
+&lt;p&gt;Our simple one layer neural network suffered greatly from overfitting on the data.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/output_11_1.png"&gt; &lt;img alt="png" src="https://benhoyle.github.io/images/output_11_2.png"&gt;&lt;/p&gt;
+&lt;p&gt;As can be seen in these graphs, within a few epochs our network has a near 100% accuracy as it learns to overfit on the supplied data. Considering that we have 10,000 data samples and, due to the high dimensionality input, our model has 2.5 million parameters, it is easy to see how overfitting could occur - i.e. there are many more parameters than samples so our network can simply learn to memorise each sample. &lt;/p&gt;
+&lt;p&gt;Overfitting leads to poor performance on validation datasets, i.e. data that is not used to train the neural network. This is most visible in the graph of model loss: while model loss reduces during training for the training data it &lt;em&gt;increases&lt;/em&gt; for the test data set, i.e. we perform worse on our test data as our model overfits on our training data.&lt;/p&gt;
+&lt;p&gt;Two techniques are recommended for overfitting: Dropout and Regularisation. In our case it turned out that Regularisation was more effective, and that a combination of moderate amounts of both Dropout and Regularisation acted to align training and test performance. For example L2 regularisation with a lambda value of 0.05 and Dropout between layers of around 0.2-0.25 worked well.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/4C_output_20_1.png"&gt; &lt;img alt="png" src="https://benhoyle.github.io/images/4C_output_20_2.png"&gt;&lt;/p&gt;
+&lt;p&gt;However, even in this case, performance quickly saturates and additional trainings does not do much to increase our accuracy or reduce our loss. &lt;/p&gt;
+&lt;p&gt;This is consistent with our other results - it suggests that there are certain easily discernable rules for work for 60-80% of class classifications, but that beyond that there are no absolute rules and that certain claims cannot be predictable assigned a class. &lt;/p&gt;
+&lt;h4&gt;Architectures&lt;/h4&gt;
+&lt;p&gt;Moving to deeper and more complex neural network did not significantly improve accuracy. This is an important lesson - there are many different possible architectures we can explore, but ultimately we are dependent on the form of our data.&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2&gt;5. Limitations&lt;/h2&gt;
+&lt;p&gt;There seemed to be a natural limit of around 60% to classifier performance. Here are some ideas for why this may be:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;The claims do not contain enough information. This may especially be the case for particularly broad claims. We need to also look at the text of the detailed description.&lt;/li&gt;
+&lt;li&gt;A number of different classifications may be assigned to a patent application. For example, often claims may be classified in both categories G and H. As such the models may be accurate predicting another of the classifications but incorrectly predicting the chosen single category.&lt;/li&gt;
+&lt;li&gt;Classifications may be assigned by human beings who are not necessarily consistent. Hence, there may be contradictions in our data.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;A number of other limitations were uncovered:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Computing resources limited the effectiveness of our most accurate classifier.&lt;/li&gt;
+&lt;li&gt;Overfitting limited the performance of our neural network models - this was partially mitigated using Dropout and regularisation.&lt;/li&gt;
+&lt;li&gt;The compressed XML archives of patent data make it difficult to quickly access large amounts of data - when trying to process 20,000 patent documents, we had errors after processing 19,000. It may be that there are other datasets we can use, such as Google's BigQuery or other downloadable preprocessed sets of claim-classification pairs.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2&gt;6. Conclusions&lt;/h2&gt;
+&lt;p&gt;So, how best to assign a Section to a patent claim? &lt;/p&gt;
+&lt;p&gt;It turns out that a Naive Bayes classifier is a good all-round solution. I would select this for any production system. Although SVM and neural network classifiers showed slightly better performance, as measured by overall classification accuracy, the out-of-the-box quick performance of the Naive Bayes classifier, and it's reasonable strengths on individual classes, makes me believe that this is a better solution.&lt;/p&gt;
+&lt;p&gt;Even with advanced techniques overall classification accuracy was limited to around 60%. This is still better than 20% if chosen at random. However, it suggests that we cannot implement a deterministic system that makes decisions based on programmatically assigned Sections. We may thus need to shift our perspective, e.g. could we show suggested Sections, together with probabilities to help human decision making, or offer a "confirm Section" option that allows the over-riding of the missclassification of certain Sections. &lt;/p&gt;</content><category term="reporting_results"></category></entry><entry><title>6. Bonus Content - Classifying Office Action Text</title><link href="https://benhoyle.github.io/part-6-classifying-office-action-text.html" rel="alternate"></link><published>2018-06-21T10:02:55+01:00</published><updated>2018-06-21T10:02:55+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-21:/part-6-classifying-office-action-text.html</id><summary type="html">&lt;p&gt;This is an extra bonus post looking at how we could apply the same techniques to office action text classification.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;6. Bonus Content - Classifying Office Action Text&lt;/h1&gt;
+&lt;p&gt;So I have obtained prosecution histories for around 100 cases. These are then put through a processing pipeline to extract text sections from the PDF files via the tesseract Optical Character Recognition (OCR) engine.&lt;/p&gt;
+&lt;p&gt;I have then manually annotated each section to classify it into one of the following classes:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;OBJECTION_TYPES = [
+    &amp;#39;citation&amp;#39;,
+    &amp;#39;unity&amp;#39;,
+    &amp;#39;clarity&amp;#39;,
+    &amp;#39;added subject matter&amp;#39;,
+    &amp;#39;conciseness&amp;#39;,
+    &amp;#39;sufficiency&amp;#39;,
+    &amp;#39;novelty&amp;#39;,
+    &amp;#39;inventive step&amp;#39;,
+    &amp;#39;patentability&amp;#39;,
+    &amp;#39;other&amp;#39;,
+    &amp;#39;formalities&amp;#39;
+    ]
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;Loading data
-11238 claims and 11238 classifications loaded
+&lt;p&gt;Now at this stage there are multiple caveats:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;The section extraction is not great - the text is quite noisy and it is difficult to always successfully extract the sections correctly. This means there is often section text that mixes different portions of the office action. I have tried to manually clean the worst examples in the data used here. It is a question whether we run a multi-class classification on the whole OCR text or try to split it up. For a test project, the noisy smaller text portions are easier to work with.&lt;/li&gt;
+&lt;li&gt;The data is fairly limited. We ideally want &amp;gt;10x the data we have. For example, "sufficiency" only has a few examples.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;But it may be instructive to have a look at performance on this limited dataset to see whether the automated classification of text has promise.&lt;/p&gt;
+&lt;h2&gt;Loading Data&lt;/h2&gt;
+&lt;p&gt;I manually annotated the data as a spreadsheet. We thus need to load the data from the spreadsheet.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;openpyxl&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;load_workbook&lt;/span&gt;
+
+&lt;span class="n"&gt;wb&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;load_workbook&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;data_to_label_processed.xlsx&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;active_sheet&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;wb&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;wb&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sheetnames&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]]&lt;/span&gt;
+&lt;span class="n"&gt;read_data&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[]&lt;/span&gt;
+&lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;row&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;active_sheet&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;rows&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="n"&gt;row_data&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[]&lt;/span&gt;
+    &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;column&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;row&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;row_data&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;append&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;column&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;value&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;read_data&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;append&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;row_data&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;There are {0} records - each record having {1} fields:&lt;/span&gt;&lt;span class="se"&gt;\n&lt;/span&gt;&lt;span class="s2"&gt;{2}&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;read_data&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;read_data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;]),&lt;/span&gt; &lt;span class="n"&gt;read_data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;]))&lt;/span&gt;
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;h2&gt;Performance Measure&lt;/h2&gt;
-&lt;p&gt;The primary performance measure we are going to evaluate is classification accuracy, e.g. a percentage of correctly predicted classification labels. &lt;/p&gt;
-&lt;p&gt;In this project it is also useful to look at the confusion matrix. As there may be some overlap between classes, this may be visible in the confusion matrix.&lt;/p&gt;
-&lt;h2&gt;Cross Validation&lt;/h2&gt;
-&lt;p&gt;We will be applying 5-fold cross validation. This will train the classifier on 80% of the data, and test on the remaining 20%, providing an average measure for classification accuracy across 5 repetitions with different samples in each split. (10-fold cross validation would be slightly better but this was taking slightly too long on my old desktop machine.)&lt;/p&gt;
-&lt;p&gt;scikit-learn has a &lt;a href="http://scikit-learn.org/stable/modules/cross_validation.html"&gt;module&lt;/a&gt; for applying k-fold cross validation. When the cv parameter is set to 5 this will run 5-fold validation. This can also be used with keras as explained in section 7 &lt;a href="https://machinelearningmastery.com/multi-class-classification-tutorial-keras-deep-learning-library/"&gt;here&lt;/a&gt;. &lt;/p&gt;
-&lt;p&gt;We also want to set a random seed for reproducibility (so the same random numbers are generated on repetitions of the classification).&lt;/p&gt;
-&lt;h2&gt;Algorithm Selection&lt;/h2&gt;
-&lt;p&gt;We will start with 5-10 different algorithms. We need algorithms adapted for supervised multi-class classification. Luckily scikit-learn provides a &lt;a href="http://scikit-learn.org/stable/modules/multiclass.html#multiclass"&gt;handy list&lt;/a&gt;.&lt;/p&gt;
-&lt;p&gt;For the present problem these will include:
-- random selection (for use as a baseline);
-- naive Bayes;
-- logistic regression;
-- k-Nearest Neighbour classifier with k=8;
-- multi-layer perceptron;
-- support vector machines;
-- decision tree classifier; and
-- random-forest classifier.&lt;/p&gt;
-&lt;p&gt;This &lt;a href="http://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html"&gt;example&lt;/a&gt; from scikit-learn may be useful.&lt;/p&gt;
-&lt;h2&gt;Applying the Algorithms&lt;/h2&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;numpy&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.model_selection&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;cross_val_score&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.dummy&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;DummyClassifier&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.naive_bayes&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;MultinomialNB&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.neighbors&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;KNeighborsClassifier&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.linear_model&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;SGDClassifier&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.neural_network&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;MLPClassifier&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.gaussian_process&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;GaussianProcessClassifier&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.gaussian_process.kernels&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;RBF&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.tree&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;DecisionTreeClassifier&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.ensemble&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;RandomForestClassifier&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;AdaBoostClassifier&lt;/span&gt;
-&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.svm&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;SVC&lt;/span&gt;
-
-&lt;span class="n"&gt;classifiers&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;
-    &lt;span class="n"&gt;DummyClassifier&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;random_state&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;7&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;
-    &lt;span class="n"&gt;MultinomialNB&lt;/span&gt;&lt;span class="p"&gt;(),&lt;/span&gt;
-    &lt;span class="n"&gt;KNeighborsClassifier&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;n_neighbors&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;8&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;
-    &lt;span class="n"&gt;SGDClassifier&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;max_iter&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;tol&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="bp"&gt;None&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;
-    &lt;span class="n"&gt;MLPClassifier&lt;/span&gt;&lt;span class="p"&gt;(),&lt;/span&gt;
-    &lt;span class="n"&gt;DecisionTreeClassifier&lt;/span&gt;&lt;span class="p"&gt;(),&lt;/span&gt;
-    &lt;span class="n"&gt;RandomForestClassifier&lt;/span&gt;&lt;span class="p"&gt;(),&lt;/span&gt;
-    &lt;span class="n"&gt;AdaBoostClassifier&lt;/span&gt;&lt;span class="p"&gt;(),&lt;/span&gt;
-    &lt;span class="n"&gt;SVC&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
-&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;There are 1188 records - each record having 8 fields:
+[&amp;#39;10850871.4&amp;#39;, &amp;#39;EP&amp;#39;, &amp;#39;5ae83cdcab21763a9a6bba7d&amp;#39;, datetime.datetime(2017, 2, 21, 0, 0), &amp;#39;1&amp;#39;, &amp;#39;Reference is made to the following document(s); the numbering will be\nadhered to in the rest of the procedure.\n\nD1 WO 03/025775 A1 (WELLOGIX INC [US]) 27 March 2003 (2003-03-27)\n\nD2 us 2001/028364 A1 (FREDELL THOMAS [US] ET AL) 11 October 2001\n(2001-10-11)&amp;#39;, &amp;#39;citation&amp;#39;, None]
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# We can use the class name to work out each&lt;/span&gt;
-&lt;span class="n"&gt;classifiers&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="vm"&gt;__class__&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="vm"&gt;__name__&lt;/span&gt;
+&lt;p&gt;For our classification example we need a set of tuples ("text", "classification"). We'll add the number to the start of the text.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Skip first row as that is the header&lt;/span&gt;
+&lt;span class="n"&gt;data&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;{0} {1}&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;r&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;4&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="n"&gt;r&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]),&lt;/span&gt; &lt;span class="n"&gt;r&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;6&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;r&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;read_data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;:]]&lt;/span&gt;
+&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&amp;#39;DummyClassifier&amp;#39;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;(&amp;#39;1 Reference is made to the following document(s); the numbering will be\nadhered to in the rest of the procedure.\n\nD1 WO 03/025775 A1 (WELLOGIX INC [US]) 27 March 2003 (2003-03-27)\n\nD2 us 2001/028364 A1 (FREDELL THOMAS [US] ET AL) 11 October 2001\n(2001-10-11)&amp;#39;, &amp;#39;citation&amp;#39;)
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;results&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;list&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Check for blank entries - this screws up the label encoding&lt;/span&gt;
+&lt;span class="p"&gt;[(&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;t&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;c&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;t&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="n"&gt;c&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="nb"&gt;enumerate&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="ow"&gt;not&lt;/span&gt; &lt;span class="n"&gt;c&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h2&gt;Transforming the Data&lt;/h2&gt;
+&lt;p&gt;Now we need to convert our text data to a numeric equivalent.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;keras.utils&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;to_categorical&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.preprocessing&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;LabelEncoder&lt;/span&gt;
+
+&lt;span class="n"&gt;Y_class&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;d&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;d&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+
+&lt;span class="c1"&gt;# encode class values as integers&lt;/span&gt;
+&lt;span class="n"&gt;label_e&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;LabelEncoder&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;span class="n"&gt;label_e&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;fit&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;Y_class&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;encoded_Y&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;label_e&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;transform&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;Y_class&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="c1"&gt;# convert integers to dummy variables (i.e. one hot encoded)&lt;/span&gt;
+&lt;span class="n"&gt;Y&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;to_categorical&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;encoded_Y&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Our classes are now a matrix of {0}&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;Y&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;shape&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Original label: {0}; Converted label: {1}&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;Y_class&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="n"&gt;Y&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]))&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="nt"&gt;Using&lt;/span&gt; &lt;span class="nt"&gt;TensorFlow&lt;/span&gt; &lt;span class="nt"&gt;backend&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;
+
+
+&lt;span class="nt"&gt;Our&lt;/span&gt; &lt;span class="nt"&gt;classes&lt;/span&gt; &lt;span class="nt"&gt;are&lt;/span&gt; &lt;span class="nt"&gt;now&lt;/span&gt; &lt;span class="nt"&gt;a&lt;/span&gt; &lt;span class="nt"&gt;matrix&lt;/span&gt; &lt;span class="nt"&gt;of&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nt"&gt;1187&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="nt"&gt;10&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;
+&lt;span class="nt"&gt;Original&lt;/span&gt; &lt;span class="nt"&gt;label&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="nt"&gt;citation&lt;/span&gt;&lt;span class="o"&gt;;&lt;/span&gt; &lt;span class="nt"&gt;Converted&lt;/span&gt; &lt;span class="nt"&gt;label&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="cp"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="nx"&gt;.&lt;/span&gt;&lt;span class="cp"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;label_e&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;classes_&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;array([&amp;#39;added subject matter&amp;#39;, &amp;#39;citation&amp;#39;, &amp;#39;clarity&amp;#39;, &amp;#39;formalities&amp;#39;,
+       &amp;#39;inventive step&amp;#39;, &amp;#39;novelty&amp;#39;, &amp;#39;other&amp;#39;, &amp;#39;patentability&amp;#39;,
+       &amp;#39;sufficiency&amp;#39;, &amp;#39;unity&amp;#39;], dtype=&amp;#39;&amp;lt;U20&amp;#39;)
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;keras.preprocessing.text&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;Tokenizer&lt;/span&gt;
+
+&lt;span class="n"&gt;docs&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;d&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;d&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+
+&lt;span class="c1"&gt;# create the tokenizer&lt;/span&gt;
+&lt;span class="n"&gt;t&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;Tokenizer&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;num_words&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;2500&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="c1"&gt;# fit the tokenizer on the documents&lt;/span&gt;
+&lt;span class="n"&gt;t&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;fit_on_texts&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;docs&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="n"&gt;X&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;t&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;texts_to_matrix&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;docs&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;mode&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;tfidf&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Our data has the following dimensionality: &amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;shape&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;An example array is: &amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;][&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;Our data has the following dimensionality:  (1187, 2500)
+An example array is:  [0.         1.78814384 0.79917757 1.54672314 0.         0.93832662
+ 0.         0.89437137 1.00441907 0.         0.         0.
+ 0.         1.29298663 0.         0.         0.         0.
+ 0.         0.         0.         1.46439595 0.         0.
+ 0.         0.         0.         0.         0.         0.
+ 0.         0.         0.         0.         0.         0.
+ 0.         0.         0.         0.         0.         0.
+ 0.         0.         0.         0.         0.         0.
+ 2.06700994 0.         0.         0.         0.         0.
+ 0.         0.         0.         0.         0.         0.
+ 2.10873391 0.         0.         0.         0.         0.
+ 0.         0.         0.         0.         0.         0.
+ 0.         0.         0.         0.         2.05192351 0.
+ 0.         0.         0.         0.         0.         0.
+ 0.         0.         0.         6.36750738 0.         2.38799797
+ 0.         0.         0.         0.         0.         0.
+ 0.         0.         0.         0.        ]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;numpy&lt;/span&gt; &lt;span class="kn"&gt;as&lt;/span&gt; &lt;span class="nn"&gt;np&lt;/span&gt;
 &lt;span class="c1"&gt;# Convert one hot to target integer&lt;/span&gt;
-&lt;span class="n"&gt;Y_integers&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;numpy&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;argmax&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;Y&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;axis&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;Y_integers&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;np&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;argmax&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;Y&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;axis&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
 
-&lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;clf&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;classifiers&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
-    &lt;span class="n"&gt;name&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;clf&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="vm"&gt;__class__&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="vm"&gt;__name__&lt;/span&gt;
-    &lt;span class="n"&gt;scores&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;cross_val_score&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;clf&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y_integers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;cv&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="n"&gt;results&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;append&lt;/span&gt;&lt;span class="p"&gt;((&lt;/span&gt;
-        &lt;span class="n"&gt;name&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; 
-        &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;mean&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; 
-        &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;std&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;
-    &lt;span class="p"&gt;))&lt;/span&gt;
 
-    &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
-        &lt;span class="s2"&gt;&amp;quot;Classifier {0} has an average classification accuracy of {1:.2f} ({2:.2f})&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
-            &lt;span class="n"&gt;name&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; 
+&lt;h2&gt;Try Some Classifiers&lt;/h2&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.naive_bayes&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;MultinomialNB&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.dummy&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;DummyClassifier&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.model_selection&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;cross_val_score&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;scores&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;cross_val_score&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;DummyClassifier&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;random_state&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y_integers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;cv&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;10&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
+        &lt;span class="s2"&gt;&amp;quot;Random Classifier has an average classification accuracy of {0:.2f}% ({1:.2f}%)&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
             &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;mean&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; 
             &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;std&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;
-        &lt;span class="p"&gt;)&lt;/span&gt;    
-    &lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="p"&gt;)&lt;/span&gt;
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;Results&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;Classifier DummyClassifier has an average classification accuracy of 20.14 (0.13)
-Classifier MultinomialNB has an average classification accuracy of 58.90 (1.12)
-Classifier KNeighborsClassifier has an average classification accuracy of 30.15 (2.74)
-Classifier SGDClassifier has an average classification accuracy of 56.79 (0.75)
-Classifier MLPClassifier has an average classification accuracy of 61.20 (0.54)
-Classifier DecisionTreeClassifier has an average classification accuracy of 47.33 (0.52)
-Classifier RandomForestClassifier has an average classification accuracy of 50.01 (1.17)
-Classifier AdaBoostClassifier has an average classification accuracy of 34.34 (1.31)
-Classifier SVC has an average classification accuracy of 62.52 (0.80)
+&lt;p&gt;Warning: The least populated class in y has only 9 members, which is too few. The minimum number of members in any class cannot be less than n_splits=10.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;Random Classifier has an average classification accuracy of 18.98% (3.46%)
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;p&gt;Gaussian process led to a memory error so we left that one out.&lt;/p&gt;
-&lt;h2&gt;Observations&lt;/h2&gt;
-&lt;p&gt;Our baseline - making a random choice based on the different proportions of labels available is around 20% accuracy, i.e. if we guess randomly we still correctly classify the claims 1 time out of 5. &lt;/p&gt;
-&lt;p&gt;The k-Nearest Neighbours classifier does quite poorly. This indicates that clear groups within the TD-IDF vector space do not exist. The AdaBoost classifier has a comparative performance at around 35% accuracy. It would thus seem sensible to exclude these classifiers at this stage.&lt;/p&gt;
-&lt;p&gt;Tree-based classifiers - Decision Trees and Random Forest Classifiers - do a little better with around 50% accuracy. Random Forests appear to provide a small improvement (~ 3%) over Decision Trees. However, these are around 10% below the next set of classifiers, so again we will exclude these classifiers at this stage.&lt;/p&gt;
-&lt;p&gt;This leaves four classifiers with accuracies of around 60%: Naive Bayes (MultinomialNB), a Linear Support Vector Machine (SVM) trained with Stochastic Gradient Descent (SGDClassifier), an SVM with a radial basis function (RBF) kernel (SVC) and an Multi-Layer Perceptron (MLPClassifier). By comparing the linear SVM and MLP we can see that adding hidden layers to a linear model provides an improvement of around 4%. Also the SVC classifier scores highly, better than the linear SVM. It thus seems sensible to look at neural networks with hidden layers over linear regression models. The multinomial Naive Bayes classifier works surprisingly well, and slightly out-peforms the linear SVM. &lt;/p&gt;
-&lt;p&gt;From these results it looks like deep-learning, i.e. multilayer neural networks could provide a good result. We will thus investigate these methods in more detail in the next post. It would also be worth varying some parameters of the SVC classifier to see if we can improve accuracy (although training time may be an issue).&lt;/p&gt;
-&lt;p&gt;As Bayesian methods come at things from a quite different perspective, it may also be worth investigating whether we can obtain any improvement over the Naive Bayes approach. &lt;/p&gt;
-&lt;h3&gt;An Aside on Classification History&lt;/h3&gt;
-&lt;p&gt;The results of this spot-check experiment rather nicely match the historic development of supervised classification algorithms. &lt;/p&gt;
-&lt;p&gt;Before recent developments in deep-learning, linear classifiers such as linear SVMs offered the best performance. Bayesian methods then offered an alternative set of classifiers with a similar performance. Many early spam filters used Naive Bayes classifiers. &lt;/p&gt;
-&lt;p&gt;The recent improvements in deep-learning offer the potential for gains over the previous state-of-the-art. However, as in our case, these gains are not huge with vanilla models (less than 5%). &lt;/p&gt;</content><category term="spot_checking"></category></entry><entry><title>1. Classifying Claims - Defining the Problem</title><link href="https://benhoyle.github.io/part-1-classifying-claims-defining-the-problem.html" rel="alternate"></link><published>2018-03-22T13:43:12+00:00</published><updated>2018-03-22T13:43:12+00:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-03-22:/part-1-classifying-claims-defining-the-problem.html</id><summary type="html">&lt;p&gt;This post looks at how we define the problem of claim classification.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;1. Classifying Claims - Defining the Problem&lt;/h1&gt;
+&lt;p&gt;As expected we also have a warning that our "sufficiency" class doesn't have enough data points!&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;itertools&lt;/span&gt;
+&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;numpy&lt;/span&gt; &lt;span class="kn"&gt;as&lt;/span&gt; &lt;span class="nn"&gt;np&lt;/span&gt;
+&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;matplotlib.pyplot&lt;/span&gt; &lt;span class="kn"&gt;as&lt;/span&gt; &lt;span class="nn"&gt;plt&lt;/span&gt;
+
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.model_selection&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;train_test_split&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.metrics&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;confusion_matrix&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;plot_confusion_matrix&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;classes&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+                          &lt;span class="n"&gt;normalize&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="bp"&gt;False&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+                          &lt;span class="n"&gt;title&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Confusion matrix&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+                          &lt;span class="n"&gt;cmap&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Blues&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+&lt;span class="sd"&gt;    This function prints and plots the confusion matrix.&lt;/span&gt;
+&lt;span class="sd"&gt;    Normalization can be applied by setting `normalize=True`.&lt;/span&gt;
+&lt;span class="sd"&gt;    &amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;normalize&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;cm&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;astype&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;float&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt; &lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sum&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;axis&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;)[:,&lt;/span&gt; &lt;span class="n"&gt;np&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;newaxis&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;
+        &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Normalized confusion matrix&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;else&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Confusion matrix, without normalization&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+    &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;imshow&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;interpolation&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;nearest&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;cmap&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;cmap&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;title&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;title&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;colorbar&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+    &lt;span class="n"&gt;tick_marks&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;np&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;arange&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;classes&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;xticks&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tick_marks&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;classes&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;rotation&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;45&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;yticks&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tick_marks&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;classes&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+    &lt;span class="n"&gt;fmt&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;.1f&amp;#39;&lt;/span&gt; &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;normalize&lt;/span&gt; &lt;span class="k"&gt;else&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;d&amp;#39;&lt;/span&gt;
+    &lt;span class="n"&gt;thresh&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;max&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt; &lt;span class="mf"&gt;2.&lt;/span&gt;
+    &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;j&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;itertools&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;product&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;range&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;shape&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]),&lt;/span&gt; &lt;span class="nb"&gt;range&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;shape&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;])):&lt;/span&gt;
+        &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;text&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;j&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;j&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="n"&gt;fmt&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;
+                 &lt;span class="n"&gt;horizontalalignment&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;center&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+                 &lt;span class="n"&gt;color&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;white&amp;quot;&lt;/span&gt; &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;cm&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;j&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;&amp;gt;&lt;/span&gt; &lt;span class="n"&gt;thresh&lt;/span&gt; &lt;span class="k"&gt;else&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;black&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;tight_layout&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;ylabel&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;True label&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;xlabel&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Predicted label&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;matplotlib&lt;/span&gt;
+&lt;span class="n"&gt;matplotlib&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;rcParams&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;update&lt;/span&gt;&lt;span class="p"&gt;({&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;font.size&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="mi"&gt;22&lt;/span&gt;&lt;span class="p"&gt;})&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;NBclassifier&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;MultinomialNB&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;span class="n"&gt;scores&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;cross_val_score&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;NBclassifier&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y_integers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;cv&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;10&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
+        &lt;span class="s2"&gt;&amp;quot;Naive Bayes Classifier has an average classification accuracy of {0:.2f} ({1:.2f})&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
+            &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;mean&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; 
+            &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;std&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;
+        &lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;Warning&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="n"&gt;The&lt;/span&gt; &lt;span class="n"&gt;least&lt;/span&gt; &lt;span class="n"&gt;populated&lt;/span&gt; &lt;span class="kd"&gt;class&lt;/span&gt; &lt;span class="k"&gt;in&lt;/span&gt; &lt;span class="n"&gt;y&lt;/span&gt; &lt;span class="n"&gt;has&lt;/span&gt; &lt;span class="n"&gt;only&lt;/span&gt; &lt;span class="mi"&gt;9&lt;/span&gt; &lt;span class="n"&gt;members&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="n"&gt;which&lt;/span&gt; &lt;span class="k"&gt;is&lt;/span&gt; &lt;span class="n"&gt;too&lt;/span&gt; &lt;span class="n"&gt;few&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt; &lt;span class="n"&gt;The&lt;/span&gt; &lt;span class="n"&gt;minimum&lt;/span&gt; &lt;span class="n"&gt;number&lt;/span&gt; &lt;span class="n"&gt;of&lt;/span&gt; &lt;span class="n"&gt;members&lt;/span&gt; &lt;span class="k"&gt;in&lt;/span&gt; &lt;span class="n"&gt;any&lt;/span&gt; &lt;span class="kd"&gt;class&lt;/span&gt; &lt;span class="n"&gt;cannot&lt;/span&gt; &lt;span class="n"&gt;be&lt;/span&gt; &lt;span class="n"&gt;less&lt;/span&gt; &lt;span class="n"&gt;than&lt;/span&gt; &lt;span class="n"&gt;n_splits&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;10&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;
+  &lt;span class="o"&gt;%&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="n"&gt;min_groups&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="n"&gt;self&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="na"&gt;n_splits&lt;/span&gt;&lt;span class="o"&gt;)),&lt;/span&gt; &lt;span class="n"&gt;Warning&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;
+
+
+&lt;span class="n"&gt;Naive&lt;/span&gt; &lt;span class="n"&gt;Bayes&lt;/span&gt; &lt;span class="n"&gt;Classifier&lt;/span&gt; &lt;span class="n"&gt;has&lt;/span&gt; &lt;span class="n"&gt;an&lt;/span&gt; &lt;span class="n"&gt;average&lt;/span&gt; &lt;span class="n"&gt;classification&lt;/span&gt; &lt;span class="n"&gt;accuracy&lt;/span&gt; &lt;span class="n"&gt;of&lt;/span&gt; &lt;span class="mf"&gt;63.08&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="mf"&gt;4.88&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;This seems suprisingly similar to our previous task, where we had a classification accuracy of around 60%.&lt;/p&gt;
+&lt;p&gt;Let's have a closer look at how the classifier is being applied.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;X_train&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;X_test&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;y_train&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;y_test&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;train_test_split&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y_integers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;random_state&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="n"&gt;NB_y_pred&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;NBclassifier&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;fit&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;X_train&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;y_train&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;predict&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;X_test&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;NB_cnf_matrix&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;confusion_matrix&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;y_test&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;NB_y_pred&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;np&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;set_printoptions&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;precision&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;figure&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;figsize&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;20&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;20&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+&lt;span class="n"&gt;plot_confusion_matrix&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;NB_cnf_matrix&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;classes&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;label_e&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;classes_&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;normalize&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="bp"&gt;True&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+                      &lt;span class="n"&gt;title&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Confusion matrix for NB Classifier, with normalization&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;show&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;Normalized confusion matrix
+[[ 50.     0.     0.     0.    16.67   0.    33.33   0.     0.     0.  ]
+ [  0.   100.     0.     0.     0.     0.     0.     0.     0.     0.  ]
+ [  3.45   0.    79.31   3.45   3.45   3.45   6.9    0.     0.     0.  ]
+ [  0.     0.     0.   100.     0.     0.     0.     0.     0.     0.  ]
+ [  1.83   0.     2.75   0.    71.56  11.01   2.75   5.5    4.59   0.  ]
+ [  0.     0.     3.57   0.    17.86  60.71   7.14   7.14   0.     3.57]
+ [  6.25   0.     4.69   3.12  12.5   10.94  53.12   7.81   1.56   0.  ]
+ [  0.     0.     0.     0.    10.     0.     0.    90.     0.     0.  ]
+ [  0.     0.     0.     0.     0.     0.     0.     0.   100.     0.  ]
+ [  0.     0.    16.67   0.    16.67   0.     0.     0.     0.    66.67]]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/CC_6_output_24_1.resized.png"&gt;&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Lets also try the Multi-layer Perceptron&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;sklearn.neural_network&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;MLPClassifier&lt;/span&gt;
+
+&lt;span class="n"&gt;MLPclassifier&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;MLPClassifier&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;span class="n"&gt;scores&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;cross_val_score&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;MLPclassifier&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y_integers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;cv&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;10&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
+        &lt;span class="s2"&gt;&amp;quot;MLP Classifier has an average classification accuracy of {0:.2f} ({1:.2f})&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
+            &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;mean&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; 
+            &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;std&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;
+        &lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="n"&gt;X_train&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;X_test&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;y_train&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;y_test&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;train_test_split&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;Y_integers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;random_state&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="n"&gt;MLP_y_pred&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;MLPclassifier&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;fit&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;X_train&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;y_train&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;predict&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;X_test&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;MLP_cnf_matrix&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;confusion_matrix&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;y_test&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;MLP_y_pred&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;np&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;set_printoptions&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;precision&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;figure&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;figsize&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;20&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;20&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+&lt;span class="n"&gt;plot_confusion_matrix&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;MLP_cnf_matrix&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;classes&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;label_e&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;classes_&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;normalize&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="bp"&gt;True&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+                      &lt;span class="n"&gt;title&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Confusion matrix for MLP Classifier, with normalization&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;show&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;MLP Classifier has an average classification accuracy of 70.70 (4.68)
+Normalized confusion matrix
+[[ 50.     0.    16.67   0.    16.67   0.    16.67   0.     0.     0.  ]
+ [  0.   100.     0.     0.     0.     0.     0.     0.     0.     0.  ]
+ [  0.     0.    82.76   0.     6.9    3.45   6.9    0.     0.     0.  ]
+ [  0.     0.     0.   100.     0.     0.     0.     0.     0.     0.  ]
+ [  0.     0.     4.59   0.    79.82   3.67  10.09   1.83   0.     0.  ]
+ [  0.     0.     0.     0.    17.86  64.29  14.29   3.57   0.     0.  ]
+ [  1.56   0.     3.12   1.56  18.75   1.56  71.88   1.56   0.     0.  ]
+ [  0.     0.     0.     0.    15.     0.     5.    80.     0.     0.  ]
+ [  0.     0.     0.     0.     0.     0.     0.     0.   100.     0.  ]
+ [  0.     0.    16.67   0.    33.33   0.    33.33   0.     0.    16.67]]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;&lt;img alt="png" src="https://benhoyle.github.io/images/CC_6_output_25_2.resized.png"&gt;&lt;/p&gt;
+&lt;h2&gt;Comments on Results&lt;/h2&gt;
+&lt;p&gt;These are fairly good results out-of-the-box.&lt;/p&gt;
+&lt;p&gt;I think the main improvements would come from:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;cleaner data; &lt;/li&gt;
+&lt;li&gt;more data;&lt;/li&gt;
+&lt;li&gt;more consistent labelling.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;This also does not take account of the fact that objections are often presented in numbered lists with a hierarchical structure. We can use this as a form of ensemble classifier.&lt;/p&gt;</content><category term="bonus"></category></entry><entry><title>1. Classifying Claims - Defining the Problem</title><link href="https://benhoyle.github.io/part-1-classifying-claims-defining-the-problem.html" rel="alternate"></link><published>2018-06-21T10:02:55+01:00</published><updated>2018-06-21T10:02:55+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-21:/part-1-classifying-claims-defining-the-problem.html</id><summary type="html">&lt;p&gt;This post looks at how we define the problem of claim classification.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;1. Classifying Claims - Defining the Problem&lt;/h1&gt;
 &lt;p&gt;This post looks at how we define the problem of claim classification.  &lt;/p&gt;
 &lt;hr&gt;
 &lt;h1&gt;What is the problem?&lt;/h1&gt;

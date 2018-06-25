@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <!-- Required meta tags -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <title>  1. Tweet2Bible - Defining the Problem | Practical Machine Learning Adventures
+</title>
+  <link rel="canonical" href="https://benhoyle.github.io/part-1-tweet2bible-defining-the-problem.html">
+
+
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.9/css/all.css" integrity="sha384-5SOiIsAziJl6AWe0HWRKTXlfcSHKmYV4RBF18PPJ173Kzn7jzMyFuTtk8JA7QQG1" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/pygments/default.min.css">
+  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/theme.css">
+
+  <link rel="alternate" type="application/atom+xml" title="Full Atom Feed"
+        href="https://benhoyle.github.io/feeds/all.atom.xml">
+  <link rel="alternate" type="application/atom+xml" title="Categories Atom Feed"
+        href="https://benhoyle.github.io/feeds/tweet2bible.atom.xml">  
+  <meta name="description" content="This post looks at how we define the problem of text similarity.">
+  <script>
+    (function(i, s, o, g, r, a, m) {
+      i['GoogleAnalyticsObject'] = r;
+      i[r] = i[r] || function() {
+        (i[r].q = i[r].q || []).push(arguments)
+      }, i[r].l = 1 * new Date();
+      a = s.createElement(o);
+      a.async = 1;
+      a.src = g;
+      m = s.getElementsByTagName(o)[0];
+      m.parentNode.insertBefore(a, m)
+    })(window, document, 'script', 'https://www.google-analytics.com/analytics.js', 'ga');
+    ga('create', 'UA-96290248-2', 'auto');
+    ga('send', 'pageview');
+  </script>
+
+
+</head>
+
+<body>
+  <header class="header">
+    <div class="container">
+<div class="row">
+  <div class="col-sm-12">
+    <h1 class="title"><a href="https://benhoyle.github.io/">Practical Machine Learning Adventures</a></h1>
+      <p class="text-muted">A selection of machine learning projects</p>
+  </div>
+</div>    </div>
+  </header>
+
+  <div class="main">
+    <div class="container">
+  <article class="article">
+    <div class="content">
+      <h1>1. Tweet2Bible - Defining the Problem</h1>
+<p>This post looks at how we define the problem of matching Bible passages to tweets.</p>
+<hr>
+<h1>What is the problem?</h1>
+<h2>Problem Introduction</h2>
+<p>I need to research text matching algorithms. We start with two corpora of text data. For a portion of text in the first corpus we want to find the "most similar" portion of text from the second corpus.</p>
+<p>For fun I decided to use two readily available corpora of short text portions: my Tweet archive and the Bible.</p>
+<p>The devil (might have to be careful with that phrase) is in the detail of course. A key problem is how we define "most similar".</p>
+<p>The problem can be seen as one of information retrieval.</p>
+<h2>Formalised</h2>
+<p>We have two corpora: D1 and D2. Each corpora contains a set of text portions: ti, where i is the ith text portion. For a given text portion in D1, tg, we want to return a ranked list of text portions from D2, r.</p>
+<p>We can define a similarity measure, s, that is a normalised metric with values from 0 to 1 that represents similarity of two text portions t1 and t2, where 0 means no similarity and 1 means t1=t2. The ranked list r thus can contain tuples (tj, sj) sorted in descending order based on sj.</p>
+<p>We want to design a similarity function that matches our natural feeling of relevance. This is the hard part. Relevance will need to be scored subjectively, by comparatively rating different functions using human judgement (e.g. through looking at the actual results).</p>
+<h2>Assumptions</h2>
+<p>Below are some assumptions that may apply to the problem.</p>
+<ul>
+<li>We assume that there is some underlying human "relevance", i.e. that a person plucked off the street could say, relatively that one passage is more relevant than another passage.</li>
+<li>We assume that similarity in some way may be reduced to a single metric between 0 and 1.</li>
+</ul>
+<hr>
+<h2>Similar Problems</h2>
+<h3>Information Retrieval</h3>
+<p>The current problem is really an <a href="https://en.wikipedia.org/wiki/Information_retrieval">information retrieval</a> problem. We have a source document, which is used to query a corpus and to retrieve a set of "relevant" documents. Many information retrieval systems take a set of keywords and then query an indexed database using the keywords. Google uses the PageRank algorithm and other magic to return relevant search results that are ranked based on links in and out of the web-page.</p>
+<hr>
+<h1>Why does the problem need to be solved?</h1>
+<p>There are many areas where it would be useful to match text segments. For example, in my patent work it would be good to select relevant passages of patent publications and Wikipedia based on claim or description text.  </p>
+<h3>My Motivation</h3>
+<p>By trying out techniques on a toy problem I can perform some high-level evaluation of what works. Plus it seems fun to match Bible passages to tweets.</p>
+<h3>Solution Benefits</h3>
+<p>The solution can form the basis for text similarity matching algorithms in other projects I am working on.  </p>
+<h3>Solution Use</h3>
+<p>I will write up my results in a blog post report. There will be a separate blog post for each stage in my investigation and a summary page reporting my results.</p>
+<p>I could also build a small web application that applies the algorithm to live tweets and other sources of scripture. Who wouldn't want to know which passage of the Qu'ran best matches Donald Trump's latest rant?</p>
+<hr>
+<h1>How Would I Solve the Problem?</h1>
+<p>It is worth considering how the problem may be solved manually.</p>
+<p>I would start by reading a tweet. I would then manually skim through passages of the Bible until I located one that seemed to be related. If I had a lot of free time I might even rank each passage based on relative relevance (e.g. if there are 1000 passages, each passage would get a unique score between 1 and 1000 - I would definitely lose track after about 3).</p>
+<p>Now having to review each passage of the Bible in turn is quite labour intensive. To help I might try to group similar passages together (e.g. these all mention "crows"). I might find that certain portions were more relevant to certain topics (e.g. Genesis to matters of geology and biology).</p>
+<p>I might try to summarise each tweet with a set of one or two keywords. I could then use those keywords to do a text search.</p>
+    </div>
+    <hr/>
+    <footer>
+      <ul class="list-inline">
+        <li class="list-inline-item text-muted" title="2018-06-21T11:00:42.417260+01:00">
+          <i class="fa fa-clock-o"></i>
+          Thu 21 June 2018
+        </li>
+        <li class="list-inline-item">
+          <i class="fa fa-folder-open-o"></i>
+          <a href="https://benhoyle.github.io/category/tweet2bible.html">Tweet2Bible</a>
+        </li>
+          <li class="list-inline-item">
+            <i class="fa fa-user-o"></i>
+              <a href="https://benhoyle.github.io/author/ben-hoyle.html">Ben Hoyle</a>          </li>
+          <li class="list-inline-item">
+            <i class="fa fa-files-o"></i>
+              <a href="https://benhoyle.github.io/tag/defining_the_problem.html">#defining_the_problem</a>          </li>
+      </ul>
+    </footer>
+  </article>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+<div class="row">
+  <p class="col-sm-6 text-sm-left">
+    <a href="https://www.linkedin.com/in/benhoyle/" class="text-muted" target="_blank">Ben Hoyle</a> - <a href="https://twitter.com/bjh_ip" ><i class="fab fa-twitter"></i></a>
+  </p>
+  <p class="col-sm-6 text-sm-right text-muted">
+    Generated by <a href="https://github.com/getpelican/pelican" class="text-muted" target="_blank">Pelican</a>
+    / <a href="https://github.com/nairobilug/pelican-alchemy" class="text-muted" target="_blank">Adapted from &#x2728;</a>
+  </p>
+</div>    </div>
+  </footer>
+</body>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script>
+$( document ).ready(function() {
+    $('table').addClass('table table-bordered');
+    $('tbody').addClass('table-striped');
+    $('th').addClass('text-center');
+});
+</script></html>

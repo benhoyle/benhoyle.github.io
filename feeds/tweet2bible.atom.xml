@@ -1,0 +1,1505 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Practical Machine Learning Adventures - Tweet2Bible</title><link href="https://benhoyle.github.io/" rel="alternate"></link><link href="https://benhoyle.github.io/feeds/tweet2bible.atom.xml" rel="self"></link><id>https://benhoyle.github.io/</id><updated>2018-06-25T10:24:16+01:00</updated><entry><title>3. Tweet2Bible - Comparing Similarity Measures</title><link href="https://benhoyle.github.io/part-3-tweet2bible-comparing-similarity-measures.html" rel="alternate"></link><published>2018-06-25T10:24:16+01:00</published><updated>2018-06-25T10:24:16+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-25:/part-3-tweet2bible-comparing-similarity-measures.html</id><summary type="html">&lt;p&gt;This post looks at some approaches for matching tweets to Bible passages.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;3. Tweet2Bible - Comparing Similarity Measures&lt;/h1&gt;
+&lt;p&gt;Now we have our data we can look at some matching.&lt;/p&gt;
+&lt;p&gt;To start we will look at a number of off-the-shelf similarity functions. We will then compare these subjectively and see what gets us the best matches.&lt;/p&gt;
+&lt;h2&gt;Similarity Functions&lt;/h2&gt;
+&lt;p&gt;Here are some initial similarity functions we can look at:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://docs.python.org/3/library/difflib.html"&gt;Difflib's SequenceMatcher&lt;/a&gt; has a "ratio" function that provides a match score for two strings. This represents a "naive" baseline.&lt;/li&gt;
+&lt;li&gt;We can use spaCy's &lt;a href="https://spacy.io/usage/vectors-similarity"&gt;"similarity" method&lt;/a&gt; on "doc" objects (i.e. as applied to each string).&lt;/li&gt;
+&lt;li&gt;We can apply the techniques set available in Gensim as set out in &lt;a href="https://radimrehurek.com/gensim/tut3.html"&gt;this helpful tutorial&lt;/a&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;We can then use the results as a baseline for more complex models and algorithms.&lt;/p&gt;
+&lt;p&gt;We will also time how long each method takes.&lt;/p&gt;
+&lt;h3&gt;Load Data&lt;/h3&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;logging&lt;/span&gt;
+&lt;span class="n"&gt;logging&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;basicConfig&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&lt;/span&gt;&lt;span class="si"&gt;%(asctime)s&lt;/span&gt;&lt;span class="s1"&gt; : &lt;/span&gt;&lt;span class="si"&gt;%(levelname)s&lt;/span&gt;&lt;span class="s1"&gt; : &lt;/span&gt;&lt;span class="si"&gt;%(message)s&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;level&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;logging&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;INFO&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;pickle&lt;/span&gt;
+&lt;span class="k"&gt;with&lt;/span&gt; &lt;span class="nb"&gt;open&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;processed_data.pkl&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;rb&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;as&lt;/span&gt; &lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;pickle&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;load&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;We have {0} tweets.&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;)))&lt;/span&gt;
+&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;We have {0} Bible passages.&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;)))&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;We have 9806 tweets.
+We have 31102 Bible passages.
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;hr&gt;
+&lt;h3&gt;Difflib SequenceMatcher&lt;/h3&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;difflib&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;SequenceMatcher&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;similar&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;a&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;Get a similarity metric for strings a and b&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;SequenceMatcher&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="bp"&gt;None&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;a&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;ratio&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;get_matches&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;Match a tweet against the bible_data.&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="c1"&gt;# Get matches&lt;/span&gt;
+    &lt;span class="n"&gt;scores&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;
+        &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;similar&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+        &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;
+    &lt;span class="p"&gt;]&lt;/span&gt;
+    &lt;span class="c1"&gt;# Sort by descending score&lt;/span&gt;
+    &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sort&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;key&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;lambda&lt;/span&gt; &lt;span class="n"&gt;tup&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="n"&gt;tup&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="n"&gt;reverse&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="bp"&gt;True&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;scores&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;test_random_tweets&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;n&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;k&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;Print n examples for k tweets selected at random.&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;random&lt;/span&gt;
+    &lt;span class="n"&gt;num_tweets&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;indices&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;random&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sample&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;range&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;num_tweets&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="n"&gt;k&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;indices&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;tweet&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+        &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;-----------------&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Tweet text: {}&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+        &lt;span class="n"&gt;scores&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;get_matches&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;score&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="n"&gt;n&lt;/span&gt;&lt;span class="p"&gt;]:&lt;/span&gt;
+            &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="se"&gt;\n&lt;/span&gt;&lt;span class="s2"&gt;{0}, {1}, {2}&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;score&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;test_random_tweets&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;-----------------
+Tweet text: &amp;quot;In addition, along with the advance of the electronic information society, a variety of electronic devices are utilized.&amp;quot; #thetimeswelivein
+
+Mark 8:19, When I broke the five loaves among the five thousand, how many baskets full of broken pieces did you take up? They told him, Twelve., 0.4338235294117647
+
+Exodus 6:16, These are the names of the sons of Levi according to their generations: Gershon, and Kohath, and Merari; and the years of the life of Levi were one hundred thirty-seven years., 0.43174603174603177
+
+Numbers 3:21, Of Gershon was the family of the Libnites, and the family of the Shimeites: these are the families of the Gershonites., 0.4186046511627907
+
+Job 4:10, The roaring of the lion, and the voice of the fierce lion, the teeth of the young lions, are broken., 0.4166666666666667
+
+2 Corinthians 3:9, For if the service of condemnation has glory, the service of righteousness exceeds much more in glory., 0.4132231404958678
+-----------------
+Tweet text: RT @Dr_Cuspy: Why Watson and Siri Are Not Real AI http://t.co/s5MsxRK7Nd via @PopMech [Hofstadter pops up again; a renaissance?]
+
+Exodus 2:22, She bore a son, and he named him Gershom, for he said, I have lived as a foreigner in a foreign land., 0.35807860262008734
+
+2 Kings 3:22, They rose up early in the morning, and the sun shone on the water, and the Moabites saw the water over against them as red as blood., 0.35384615384615387
+
+Job 30:20, I cry to you, and you do not answer me. I stand up, and you gaze at me., 0.35175879396984927
+
+Job 38:26, To cause it to rain on a land where no man is; on the wilderness, in which there is no man;, 0.3470319634703196
+
+Genesis 34:31, They said, Should he deal with our sister as with a prostitute?, 0.34554973821989526
+-----------------
+Tweet text: EPO - The Administrative Council has been busy: updates concerning international supplementary searches, fees &amp;amp; search sharing coming up...
+
+Judges 1:21, The children of Benjamin did not drive out the Jebusites who inhabited Jerusalem; but the Jebusites dwell with the children of Benjamin in Jerusalem to this day., 0.3933333333333333
+
+2 Timothy 2:18, men who have erred concerning the truth, saying that the resurrection is already past, and overthrowing the faith of some., 0.39080459770114945
+
+Acts 15:9, He made no distinction between us and them, cleansing their hearts by faith., 0.39069767441860465
+
+Hebrews 11:38, (of whom the world was not worthy), wandering in deserts, mountains, caves, and the holes of the earth., 0.3884297520661157
+
+Joshua 13:28, This is the inheritance of the children of Gad according to their families, the cities and its villages., 0.3868312757201646
+-----------------
+Tweet text: Historians (and journalists) are always going to be important. https://t.co/o4s7DJEYwE
+
+Leviticus 9:16, He presented the burnt offering, and offered it according to the ordinance., 0.40993788819875776
+
+Job 36:33, Its noise tells about him, and the livestock also concerning the storm that comes up., 0.4093567251461988
+
+Proverbs 16:11, Honest balances and scales are Yahweh&amp;#39;s; all the weights in the bag are his work., 0.40718562874251496
+
+John 20:10, So the disciples went away again to their own homes., 0.4057971014492754
+
+Acts 3:1, Peter and John were going up into the temple at the hour of prayer, the ninth hour., 0.40236686390532544
+-----------------
+Tweet text: Tip: use Chromium on Karmic EeePC in full screen (F11): excellent use of limited space.
+
+Isaiah 28:29, This also comes forth from Yahweh of Armies, who is wonderful in counsel, and excellent in wisdom., 0.44324324324324327
+
+Psalm 139:15, My frame wasn&amp;#39;t hidden from you, when I was made in secret, woven together in the depths of the earth., 0.4126984126984127
+
+Hebrews 1:4, having become so much better than the angels, as he has inherited a more excellent name than they have., 0.4105263157894737
+
+Job 12:21, He pours contempt on princes, and loosens the belt of the strong., 0.40789473684210525
+
+Deuteronomy 25:10, His name shall be called in Israel, The house of him who has his shoe untied., 0.4024390243902439
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;hr&gt;
+&lt;h3&gt;spaCy String Similarity&lt;/h3&gt;
+&lt;p&gt;The 'en_core_web_lg' file crashed my Jupyter kernel but the 'en_core_web_sm' file loaded okay. I'll try the medium-sized file 'en_core_web_md'. Yes - 'md' file loaded okay.&lt;/p&gt;
+&lt;p&gt;Spacy uses an &lt;a href="https://spacy.io/usage/vectors-similarity#custom-similarity"&gt;average of the word vectors in a span or doc&lt;/a&gt;. (It may be faster to join the passages as a doc - process then split into spans.)&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="err"&gt;!&lt;/span&gt;&lt;span class="n"&gt;python3&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;m&lt;/span&gt; &lt;span class="n"&gt;spacy&lt;/span&gt; &lt;span class="n"&gt;download&lt;/span&gt; &lt;span class="n"&gt;en_core_web_md&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;    You can now load the model via spacy.load(&amp;#39;en_core_web_md&amp;#39;)
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;spacy&lt;/span&gt;
+
+&lt;span class="n"&gt;nlp&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;spacy&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;load&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;en_core_web_md&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;similar&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;a&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;Get a similarity metric for strings a and b&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="n"&gt;spacy_a&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;nlp&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;a&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;spacy_b&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;nlp&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;spacy_a&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;similarity&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;spacy_b&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;test_random_tweets&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;-----------------
+Tweet text: Next-Gen Bluetooth Bulb Controllable Via Smartphone | Freshome http://t.co/5oEjvL6c [A great patented idea - get it to market!]
+
+Nehemiah 3:32, Between the ascent of the corner and the sheep gate repaired the goldsmiths and the merchants., 0.38009049773755654
+
+Jeremiah 27:5, I have made the earth, the men and the animals that are on the surface of the earth, by my great power and by my outstretched arm; and I give it to whom it seems right to me., 0.3588039867109635
+
+1 Corinthians 10:7, Neither be idolaters, as some of them were. As it is written, The people sat down to eat and drink, and rose up to play., 0.3562753036437247
+
+Acts 2:20, The sun will be turned into darkness, and the moon into blood, before the great and glorious day of the Lord comes., 0.35537190082644626
+
+Matthew 18:4, Whoever therefore humbles himself as this little child, the same is the greatest in the Kingdom of Heaven., 0.351931330472103
+-----------------
+Tweet text: Ask Yourself: Are You Happier Now Than You Were 10 Years Ago? https://t.co/1MeEzAkHcT [+ report on happiness &amp;amp;amp; parenting: -ve ~ w/ GDP]
+
+Hosea 8:8, Israel is swallowed up. Now they are among the nations like a worthless thing., 0.35023041474654376
+
+Deuteronomy 29:4, but Yahweh has not given you a heart to know, and eyes to see, and ears to hear, to this day., 0.33620689655172414
+
+Amos 6:12, Do horses run on the rocky crags? Does one plow there with oxen? But you have turned justice into poison, and the fruit of righteousness into bitterness;, 0.3356164383561644
+
+Ephesians 4:28, Let him who stole steal no more; but rather let him labor, working with his hands the thing that is good, that he may have something to give to him who has need., 0.3333333333333333
+
+Psalm 112:1, Praise Yah! Blessed is the man who fears Yahweh, who delights greatly in his commandments., 0.3318777292576419
+-----------------
+Tweet text: The more possessions a person has, &amp;amp;amp; the more orderly the society, the greater the frequency of corporal punishment for children.
+
+1 Chronicles 26:19, These were the divisions of the doorkeepers; of the sons of the Korahites, and of the sons of Merari., 0.4700854700854701
+
+1 Samuel 17:31, When the words were heard which David spoke, they rehearsed them before Saul; and he sent for him., 0.4588744588744589
+
+2 Kings 20:4, It happened, before Isaiah had gone out into the middle part of the city, that the word of Yahweh came to him, saying,, 0.4541832669322709
+
+Exodus 39:38, the golden altar, the anointing oil, the sweet incense, the screen for the door of the Tent,, 0.4533333333333333
+
+Ezekiel 47:15, This shall be the border of the land: On the north side, from the great sea, by the way of Hethlon, to the entrance of Zedad;, 0.4496124031007752
+-----------------
+Tweet text: Rather than use subordinate clauses, old languages (~ C10 BC) juxtapose events according to temporal order.
+
+Genesis 30:34, Laban said, Behold, let it be according to your word., 0.475
+
+Numbers 15:12, According to the number that you shall prepare, so you shall do to everyone according to their number., 0.45933014354066987
+
+Numbers 26:53, To these the land shall be divided for an inheritance according to the number of names., 0.4329896907216495
+
+2 Kings 4:44, So he set it before them, and they ate, and left some of it, according to the word of Yahweh., 0.43
+
+2 Kings 7:16, The people went out, and plundered the camp of the Syrians. So a measure of fine flour was [sold] for a shekel, and two measures of barley for a shekel, according to the word of Yahweh., 0.4246575342465753
+-----------------
+Tweet text: The Economist | Amazon: http://t.co/wBm32F26yw [the world&amp;#39;s 9th biggest retailer didn&amp;#39;t exist 20 years ago] http://t.co/JY6Uq3iSIB
+
+2 Thessalonians 2:6, Now you know what is restraining him, to the end that he may be revealed in his own season., 0.39819004524886875
+
+Mark 16:13, They went away and told it to the rest. They didn&amp;#39;t believe them, either., 0.39408866995073893
+
+John 14:24, He who doesn&amp;#39;t love me doesn&amp;#39;t keep my words. The word which you hear isn&amp;#39;t mine, but the Father&amp;#39;s who sent me., 0.37344398340248963
+
+1 Timothy 6:7, For we brought nothing into the world, and we certainly can&amp;#39;t carry anything out., 0.3696682464454976
+
+Proverbs 13:1, A wise son listens to his father&amp;#39;s instruction, but a scoffer doesn&amp;#39;t listen to rebuke., 0.3686635944700461
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;hr&gt;
+&lt;h3&gt;Gensim&lt;/h3&gt;
+&lt;p&gt;Gensim needs a little bit of pre-processing to convert our texts into vector form. We need to get a bag of words that represents each portion of text.&lt;/p&gt;
+&lt;p&gt;First we need to tokenise our text. We can use spaCy or NLTK to do this. (The method above involves generating a spaCy doc for each Bible passage - we can maybe do this once and then use elsewhere.)&lt;/p&gt;
+&lt;p&gt;Then we filter the text and convert it into a vector form.&lt;/p&gt;
+&lt;p&gt;The procedure below mirrors the &lt;a href="https://radimrehurek.com/gensim/tut1.html"&gt;Gensim tutorial&lt;/a&gt;.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# This took quite a long time so I might go for the quicker word_tokenize from nltk&lt;/span&gt;
+&lt;span class="c1"&gt;# spacy_bible = [(verse, nlp(passage)) for verse, passage in bible_data]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;nltk&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;word_tokenize&lt;/span&gt;
+&lt;span class="n"&gt;tokenised&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[(&lt;/span&gt;&lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;word_tokenize&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;passage&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;tokenised&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;(&amp;#39;Genesis 1:4&amp;#39;,
+ [&amp;#39;God&amp;#39;,
+  &amp;#39;saw&amp;#39;,
+  &amp;#39;the&amp;#39;,
+  &amp;#39;light&amp;#39;,
+  &amp;#39;,&amp;#39;,
+  &amp;#39;and&amp;#39;,
+  &amp;#39;saw&amp;#39;,
+  &amp;#39;that&amp;#39;,
+  &amp;#39;it&amp;#39;,
+  &amp;#39;was&amp;#39;,
+  &amp;#39;good&amp;#39;,
+  &amp;#39;.&amp;#39;,
+  &amp;#39;God&amp;#39;,
+  &amp;#39;divided&amp;#39;,
+  &amp;#39;the&amp;#39;,
+  &amp;#39;light&amp;#39;,
+  &amp;#39;from&amp;#39;,
+  &amp;#39;the&amp;#39;,
+  &amp;#39;darkness&amp;#39;,
+  &amp;#39;.&amp;#39;])
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;process_words&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tokens&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot; Remove digits and punctuation from text and convert to lower case. &amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="c1"&gt;# Alternative for complete text is re.sub(&amp;#39;\W+&amp;#39;, &amp;#39;&amp;#39;, text)&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;w&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;lower&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;w&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;tokens&lt;/span&gt; &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;w&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;isalpha&lt;/span&gt;&lt;span class="p"&gt;()]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;tokenised&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[(&lt;/span&gt;&lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;process_words&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tokens&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;tokens&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;tokenised&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;tokenised&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;(&amp;#39;Genesis 1:4&amp;#39;,
+ [&amp;#39;god&amp;#39;,
+  &amp;#39;saw&amp;#39;,
+  &amp;#39;the&amp;#39;,
+  &amp;#39;light&amp;#39;,
+  &amp;#39;and&amp;#39;,
+  &amp;#39;saw&amp;#39;,
+  &amp;#39;that&amp;#39;,
+  &amp;#39;it&amp;#39;,
+  &amp;#39;was&amp;#39;,
+  &amp;#39;good&amp;#39;,
+  &amp;#39;god&amp;#39;,
+  &amp;#39;divided&amp;#39;,
+  &amp;#39;the&amp;#39;,
+  &amp;#39;light&amp;#39;,
+  &amp;#39;from&amp;#39;,
+  &amp;#39;the&amp;#39;,
+  &amp;#39;darkness&amp;#39;])
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;texts&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;tokens&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;_&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;tokens&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;tokenised&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Import NLTK modules&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;nltk&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;word_tokenize&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;nltk.corpus&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;stopwords&lt;/span&gt;
+&lt;span class="c1"&gt;# Load stopwords&lt;/span&gt;
+&lt;span class="n"&gt;ENG_STOPWORDS&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;stopwords&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;words&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;english&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;text_preprocessing&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;original_text&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;Clean and process texts for Gensim methods.&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="c1"&gt;# Tokenise&lt;/span&gt;
+    &lt;span class="n"&gt;tokenised&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;word_tokenize&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;original_text&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+    &lt;span class="c1"&gt;# Convert to lowercase and remove non-text / stopwords&lt;/span&gt;
+    &lt;span class="n"&gt;tokenised&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;w&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;lower&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;w&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;tokenised&lt;/span&gt; &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;w&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;isalpha&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="ow"&gt;and&lt;/span&gt; &lt;span class="n"&gt;w&lt;/span&gt; &lt;span class="ow"&gt;not&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;ENG_STOPWORDS&lt;/span&gt;&lt;span class="p"&gt;)]&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;tokenised&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;text_preprocessing&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="p"&gt;][&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[&amp;#39;god&amp;#39;, &amp;#39;saw&amp;#39;, &amp;#39;light&amp;#39;, &amp;#39;saw&amp;#39;, &amp;#39;good&amp;#39;, &amp;#39;god&amp;#39;, &amp;#39;divided&amp;#39;, &amp;#39;light&amp;#39;, &amp;#39;darkness&amp;#39;]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;texts&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;text_preprocessing&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;passage&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;_&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;texts&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[&amp;#39;god&amp;#39;,
+ &amp;#39;said&amp;#39;,
+ &amp;#39;let&amp;#39;,
+ &amp;#39;expanse&amp;#39;,
+ &amp;#39;middle&amp;#39;,
+ &amp;#39;waters&amp;#39;,
+ &amp;#39;let&amp;#39;,
+ &amp;#39;divide&amp;#39;,
+ &amp;#39;waters&amp;#39;,
+ &amp;#39;waters&amp;#39;]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Create a dictionary from our processed bible texts&lt;/span&gt;
+
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;gensim&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;corpora&lt;/span&gt;
+
+&lt;span class="c1"&gt;# Create a dictionary that maps numbers to words&lt;/span&gt;
+&lt;span class="n"&gt;dictionary&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;corpora&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Dictionary&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;texts&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="c1"&gt;# Save dictionary&lt;/span&gt;
+&lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;save&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;bible.dict&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;2018-06-21 12:50:20,527 : INFO : adding document #0 to Dictionary(0 unique tokens: [])
+2018-06-21 12:50:20,799 : INFO : adding document #10000 to Dictionary(6375 unique tokens: [&amp;#39;beginning&amp;#39;, &amp;#39;created&amp;#39;, &amp;#39;earth&amp;#39;, &amp;#39;god&amp;#39;, &amp;#39;heavens&amp;#39;]...)
+2018-06-21 12:50:21,016 : INFO : adding document #20000 to Dictionary(9840 unique tokens: [&amp;#39;beginning&amp;#39;, &amp;#39;created&amp;#39;, &amp;#39;earth&amp;#39;, &amp;#39;god&amp;#39;, &amp;#39;heavens&amp;#39;]...)
+2018-06-21 12:50:21,242 : INFO : adding document #30000 to Dictionary(12041 unique tokens: [&amp;#39;beginning&amp;#39;, &amp;#39;created&amp;#39;, &amp;#39;earth&amp;#39;, &amp;#39;god&amp;#39;, &amp;#39;heavens&amp;#39;]...)
+2018-06-21 12:50:21,272 : INFO : built Dictionary(12255 unique tokens: [&amp;#39;beginning&amp;#39;, &amp;#39;created&amp;#39;, &amp;#39;earth&amp;#39;, &amp;#39;god&amp;#39;, &amp;#39;heavens&amp;#39;]...) from 31102 documents (total 370556 corpus positions)
+2018-06-21 12:50:21,276 : INFO : saving Dictionary object under bible.dict, separately None
+2018-06-21 12:50:21,288 : INFO : saved bible.dict
+
+
+Dictionary(12255 unique tokens: [&amp;#39;beginning&amp;#39;, &amp;#39;created&amp;#39;, &amp;#39;earth&amp;#39;, &amp;#39;god&amp;#39;, &amp;#39;heavens&amp;#39;]...)
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;corpus&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;doc2bow&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;text&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;text&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;texts&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;span class="c1"&gt;# Save corpus for later&lt;/span&gt;
+&lt;span class="n"&gt;corpora&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;MmCorpus&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;serialize&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;bible.mm&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;corpus&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;corpus&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;2018-06-21 12:50:26,077 : INFO : storing corpus in Matrix Market format to bible.mm
+2018-06-21 12:50:26,082 : INFO : saving sparse matrix to bible.mm
+2018-06-21 12:50:26,085 : INFO : PROGRESS: saving document #0
+2018-06-21 12:50:26,122 : INFO : PROGRESS: saving document #1000
+...
+2018-06-21 12:50:27,252 : INFO : PROGRESS: saving document #31000
+2018-06-21 12:50:27,259 : INFO : saved 31102x12255 matrix, density=0.089% (339121/381155010)
+2018-06-21 12:50:27,262 : INFO : saving MmCorpus index to bible.mm.index
+IOPub data rate exceeded.
+The notebook server will temporarily stop sending output
+to the client in order to avoid crashing it.
+To change this limit, set the config variable
+`--NotebookApp.iopub_data_rate_limit`.
+
+Current values:
+NotebookApp.iopub_data_rate_limit=1000000.0 (bytes/sec)
+NotebookApp.rate_limit_window=3.0 (secs)
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;On a first run of this we note that most topics are defined by common stopwords. Let's get rid of these.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;gensim&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;models&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;similarities&lt;/span&gt;
+&lt;span class="c1"&gt;# We&amp;#39;ll start with LSI and a 100D vector&lt;/span&gt;
+&lt;span class="n"&gt;lsi&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;models&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;LsiModel&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;corpus&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;id2word&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;num_topics&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;2018-06-21 12:51:15,457 : INFO : using serial LSI version on this node
+2018-06-21 12:51:15,458 : INFO : updating model with new documents
+2018-06-21 12:51:15,460 : INFO : preparing a new chunk of documents
+2018-06-21 12:51:15,620 : INFO : using 100 extra samples and 2 power iterations
+2018-06-21 12:51:15,626 : INFO : 1st phase: constructing (12255, 200) action matrix
+2018-06-21 12:51:15,866 : INFO : orthonormalizing (12255, 200) action matrix
+2018-06-21 12:51:16,872 : INFO : 2nd phase: running dense svd on (200, 20000) matrix
+2018-06-21 12:51:18,142 : INFO : computing the final decomposition
+2018-06-21 12:51:18,146 : INFO : keeping 100 factors (discarding 18.228% of energy spectrum)
+2018-06-21 12:51:18,326 : INFO : processed documents up to #20000
+2018-06-21 12:51:18,329 : INFO : topic #0(128.237): 0.579*&amp;quot;shall&amp;quot; + 0.450*&amp;quot;yahweh&amp;quot; + 0.419*&amp;quot;i&amp;quot; + 0.176*&amp;quot;said&amp;quot; + 0.173*&amp;quot;god&amp;quot; + 0.131*&amp;quot;israel&amp;quot; + 0.108*&amp;quot;king&amp;quot; + 0.106*&amp;quot;the&amp;quot; + 0.087*&amp;quot;he&amp;quot; + 0.085*&amp;quot;house&amp;quot;
+2018-06-21 12:51:18,333 : INFO : topic #1(94.911): -0.741*&amp;quot;shall&amp;quot; + 0.569*&amp;quot;i&amp;quot; + 0.178*&amp;quot;yahweh&amp;quot; + 0.174*&amp;quot;said&amp;quot; + 0.089*&amp;quot;king&amp;quot; + 0.081*&amp;quot;god&amp;quot; + 0.069*&amp;quot;israel&amp;quot; + -0.056*&amp;quot;you&amp;quot; + 0.049*&amp;quot;son&amp;quot; + -0.045*&amp;quot;offering&amp;quot;
+2018-06-21 12:51:18,336 : INFO : topic #2(83.248): 0.656*&amp;quot;i&amp;quot; + -0.593*&amp;quot;yahweh&amp;quot; + 0.255*&amp;quot;shall&amp;quot; + -0.159*&amp;quot;israel&amp;quot; + -0.158*&amp;quot;god&amp;quot; + -0.138*&amp;quot;king&amp;quot; + -0.103*&amp;quot;the&amp;quot; + -0.081*&amp;quot;house&amp;quot; + -0.081*&amp;quot;children&amp;quot; + -0.076*&amp;quot;son&amp;quot;
+2018-06-21 12:51:18,338 : INFO : topic #3(70.173): -0.513*&amp;quot;yahweh&amp;quot; + 0.490*&amp;quot;king&amp;quot; + 0.355*&amp;quot;son&amp;quot; + 0.249*&amp;quot;the&amp;quot; + 0.243*&amp;quot;said&amp;quot; + 0.167*&amp;quot;israel&amp;quot; + 0.139*&amp;quot;he&amp;quot; + -0.124*&amp;quot;i&amp;quot; + 0.117*&amp;quot;children&amp;quot; + 0.107*&amp;quot;men&amp;quot;
+2018-06-21 12:51:18,342 : INFO : topic #4(57.722): 0.504*&amp;quot;said&amp;quot; + -0.451*&amp;quot;son&amp;quot; + -0.379*&amp;quot;children&amp;quot; + -0.349*&amp;quot;israel&amp;quot; + 0.339*&amp;quot;he&amp;quot; + -0.131*&amp;quot;i&amp;quot; + 0.129*&amp;quot;let&amp;quot; + 0.118*&amp;quot;us&amp;quot; + 0.109*&amp;quot;go&amp;quot; + 0.108*&amp;quot;god&amp;quot;
+2018-06-21 12:51:18,345 : INFO : preparing a new chunk of documents
+2018-06-21 12:51:18,454 : INFO : using 100 extra samples and 2 power iterations
+2018-06-21 12:51:18,460 : INFO : 1st phase: constructing (12255, 200) action matrix
+2018-06-21 12:51:18,589 : INFO : orthonormalizing (12255, 200) action matrix
+2018-06-21 12:51:19,492 : INFO : 2nd phase: running dense svd on (200, 11102) matrix
+2018-06-21 12:51:20,134 : INFO : computing the final decomposition
+2018-06-21 12:51:20,138 : INFO : keeping 100 factors (discarding 19.942% of energy spectrum)
+2018-06-21 12:51:20,313 : INFO : merging projections: (12255, 100) + (12255, 100)
+2018-06-21 12:51:20,720 : INFO : keeping 100 factors (discarding 5.936% of energy spectrum)
+2018-06-21 12:51:20,956 : INFO : processed documents up to #31102
+2018-06-21 12:51:20,961 : INFO : topic #0(152.944): 0.600*&amp;quot;i&amp;quot; + 0.513*&amp;quot;shall&amp;quot; + 0.354*&amp;quot;yahweh&amp;quot; + 0.169*&amp;quot;said&amp;quot; + 0.157*&amp;quot;god&amp;quot; + 0.104*&amp;quot;israel&amp;quot; + 0.092*&amp;quot;the&amp;quot; + 0.082*&amp;quot;king&amp;quot; + 0.082*&amp;quot;he&amp;quot; + 0.075*&amp;quot;land&amp;quot;
+2018-06-21 12:51:20,965 : INFO : topic #1(116.465): -0.735*&amp;quot;shall&amp;quot; + 0.651*&amp;quot;i&amp;quot; + 0.093*&amp;quot;said&amp;quot; + -0.062*&amp;quot;yahweh&amp;quot; + -0.050*&amp;quot;you&amp;quot; + -0.049*&amp;quot;offering&amp;quot; + -0.038*&amp;quot;the&amp;quot; + -0.025*&amp;quot;priest&amp;quot; + 0.023*&amp;quot;know&amp;quot; + 0.021*&amp;quot;for&amp;quot;
+2018-06-21 12:51:20,966 : INFO : topic #2(97.426): 0.592*&amp;quot;yahweh&amp;quot; + -0.415*&amp;quot;i&amp;quot; + -0.394*&amp;quot;shall&amp;quot; + 0.258*&amp;quot;god&amp;quot; + 0.177*&amp;quot;said&amp;quot; + 0.167*&amp;quot;israel&amp;quot; + 0.167*&amp;quot;king&amp;quot; + 0.144*&amp;quot;the&amp;quot; + 0.118*&amp;quot;son&amp;quot; + 0.107*&amp;quot;house&amp;quot;
+2018-06-21 12:51:20,968 : INFO : topic #3(79.928): -0.604*&amp;quot;yahweh&amp;quot; + 0.379*&amp;quot;said&amp;quot; + 0.303*&amp;quot;king&amp;quot; + 0.284*&amp;quot;son&amp;quot; + 0.245*&amp;quot;the&amp;quot; + 0.245*&amp;quot;he&amp;quot; + 0.145*&amp;quot;man&amp;quot; + 0.144*&amp;quot;one&amp;quot; + 0.096*&amp;quot;came&amp;quot; + -0.095*&amp;quot;i&amp;quot;
+2018-06-21 12:51:20,974 : INFO : topic #4(69.851): 0.857*&amp;quot;god&amp;quot; + -0.237*&amp;quot;king&amp;quot; + -0.213*&amp;quot;yahweh&amp;quot; + -0.165*&amp;quot;son&amp;quot; + -0.162*&amp;quot;the&amp;quot; + -0.105*&amp;quot;israel&amp;quot; + 0.103*&amp;quot;us&amp;quot; + -0.093*&amp;quot;children&amp;quot; + 0.077*&amp;quot;for&amp;quot; + 0.064*&amp;quot;jesus&amp;quot;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Create index&lt;/span&gt;
+&lt;span class="n"&gt;index&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;similarities&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;MatrixSimilarity&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;corpus&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;
+&lt;span class="n"&gt;index&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;save&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;bible.index&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;2018-06-21 12:53:38,112 : WARNING : scanning corpus to determine the number of features (consider setting `num_features` explicitly)
+2018-06-21 12:53:39,874 : INFO : creating matrix with 31102 documents and 100 features
+2018-06-21 12:53:43,628 : INFO : saving MatrixSimilarity object under bible.index, separately None
+2018-06-21 12:53:43,786 : INFO : saved bible.index
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;text2vec&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;text&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;Convert a portion of text to an LSI vector.&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="n"&gt;processed&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;text_preprocessing&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;text&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;vec_bow&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;doc2bow&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;processed&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;vec_lsi&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;vec_bow&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="c1"&gt;# convert the query to LSI space&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;vec_lsi&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;vec_lsi&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;text2vec&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;sims&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;index&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;vec_lsi&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="c1"&gt;# perform a similarity query against the corpus&lt;/span&gt;
+&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;list&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;enumerate&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;sims&lt;/span&gt;&lt;span class="p"&gt;))[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt; &lt;span class="c1"&gt;# print (document_number, document_similarity) 2-tuples&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[(0, 0.026685458), (1, 0.010693545), (2, 0.02526992), (3, 0.018537477), (4, -0.0064496454)]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;sims_sorted&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;sorted&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;enumerate&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;sims&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="n"&gt;key&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;lambda&lt;/span&gt; &lt;span class="n"&gt;item&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;item&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;
+&lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;sims_sorted&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt; &lt;span class="c1"&gt;# print sorted (document number, similarity score) 2-tuples&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[(14471, 0.98052335), (16335, 0.78113711), (5388, 0.75273919), (17916, 0.74159586), (26053, 0.73570257)]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;sims_sorted&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;][&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;(&amp;#39;Psalm 37:21&amp;#39;,
+ &amp;quot;The wicked borrow, and don&amp;#39;t pay back, but the righteous give generously.&amp;quot;)
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&amp;#39;“The ungovernable metropolis, with its fluid population and ethnic and occupational enclaves, is an affront to a mindset that envisions a world of harmony, purity, and organic wholeness.” - to thrive you need to give up unattainable perfection and unquestioning agreement&amp;#39;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Now let's fold all this into a function.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;zipped&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[(&lt;/span&gt;&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;v&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;s&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;v&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="n"&gt;s&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="nb"&gt;zip&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;sims&lt;/span&gt;&lt;span class="p"&gt;)]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;zipped&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;14471&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;(&amp;#39;Psalm 37:21&amp;#39;,
+ &amp;quot;The wicked borrow, and don&amp;#39;t pay back, but the righteous give generously.&amp;quot;,
+ 0.98052335)
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Import gensim modules&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;gensim&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;corpora&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;models&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;similarities&lt;/span&gt;
+
+&lt;span class="c1"&gt;# Import NLTK modules&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;nltk&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;word_tokenize&lt;/span&gt;
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;nltk.corpus&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;stopwords&lt;/span&gt;
+&lt;span class="c1"&gt;# Load stopwords&lt;/span&gt;
+&lt;span class="n"&gt;ENG_STOPWORDS&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;stopwords&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;words&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;english&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;text_preprocessing&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;original_text&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;Clean and process texts for Gensim methods.&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="c1"&gt;# Tokenise&lt;/span&gt;
+    &lt;span class="n"&gt;tokenised&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;word_tokenize&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;original_text&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+    &lt;span class="c1"&gt;# Convert to lowercase and remove non-text / stopwords&lt;/span&gt;
+    &lt;span class="n"&gt;tokenised&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;w&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;lower&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;w&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;tokenised&lt;/span&gt; &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;w&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;isalpha&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="ow"&gt;and&lt;/span&gt; &lt;span class="n"&gt;w&lt;/span&gt; &lt;span class="ow"&gt;not&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;ENG_STOPWORDS&lt;/span&gt;&lt;span class="p"&gt;)]&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;tokenised&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;text2vec&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;text&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;Convert a portion of text to an LSI vector.&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="n"&gt;processed&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;text_preprocessing&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;text&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;vec_bow&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;doc2bow&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;processed&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;vec_lsi&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;vec_bow&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="c1"&gt;# convert the query to LSI space&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;vec_lsi&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;build_data&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;Generate variables for matching.&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="c1"&gt;# Process text&lt;/span&gt;
+    &lt;span class="n"&gt;texts&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;text_preprocessing&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;passage&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;_&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+    &lt;span class="c1"&gt;# Build dictionary&lt;/span&gt;
+    &lt;span class="n"&gt;dictionary&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;corpora&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Dictionary&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;texts&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="c1"&gt;# Convert bible data to corpus&lt;/span&gt;
+    &lt;span class="n"&gt;corpus&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;doc2bow&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;text&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;text&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;texts&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+    &lt;span class="n"&gt;lsi&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;models&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;LsiModel&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;corpus&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;id2word&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;num_topics&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="c1"&gt;# Create index&lt;/span&gt;
+    &lt;span class="n"&gt;index&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;similarities&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;MatrixSimilarity&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;corpus&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;
+    &lt;span class="c1"&gt;# Save all of these&lt;/span&gt;
+    &lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;save&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;bible.dict&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;corpora&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;MmCorpus&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;serialize&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;bible.mm&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;corpus&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;save&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;bible.lsi&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;index&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;save&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;bible.index&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;corpus&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;index&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;get_matches&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;index&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;Match a tweet against the bible_data.&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="c1"&gt;# To run this we need dictionary, lsi, and index variables&lt;/span&gt;
+    &lt;span class="c1"&gt;# Get matches&lt;/span&gt;
+    &lt;span class="n"&gt;vec_lsi&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;text2vec&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;sims&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;index&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;vec_lsi&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="c1"&gt;# perform a similarity query against the corpus&lt;/span&gt;
+    &lt;span class="n"&gt;scores&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[(&lt;/span&gt;&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;v&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;s&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;v&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="n"&gt;s&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="nb"&gt;zip&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;sims&lt;/span&gt;&lt;span class="p"&gt;)]&lt;/span&gt;
+    &lt;span class="c1"&gt;# Sort by descending score&lt;/span&gt;
+    &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sort&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;key&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;lambda&lt;/span&gt; &lt;span class="n"&gt;tup&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="n"&gt;tup&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="n"&gt;reverse&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="bp"&gt;True&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;scores&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;test_random_tweets&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;n&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;k&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;Print n examples for k tweets selected at random.&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="k"&gt;try&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;dictionary&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;corpora&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Dictionary&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;load&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;bible.dict&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="n"&gt;corpus&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;corpora&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;MmCorpus&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;bible.mm&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="n"&gt;lsi&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;models&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;LsiModel&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;load&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;bible.lsi&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="n"&gt;index&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;similarities&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;MatrixSimilarity&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;load&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;bible.index&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;except&lt;/span&gt; &lt;span class="n"&gt;FileNotFoundError&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;corpus&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;index&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;build_data&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+    &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;random&lt;/span&gt;
+    &lt;span class="n"&gt;num_tweets&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;indices&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;random&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sample&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;range&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;num_tweets&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="n"&gt;k&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;indices&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;tweet&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+        &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;-----------------&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Tweet text: {}&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+        &lt;span class="n"&gt;scores&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;get_matches&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;index&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;score&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="n"&gt;n&lt;/span&gt;&lt;span class="p"&gt;]:&lt;/span&gt;
+            &lt;span class="k"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="se"&gt;\n&lt;/span&gt;&lt;span class="s2"&gt;{0}, {1}, {2}&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;score&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="nt"&gt;2018-06-23&lt;/span&gt; &lt;span class="nt"&gt;08&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="nd"&gt;15&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="nd"&gt;34&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="nt"&gt;349&lt;/span&gt; &lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="nt"&gt;INFO&lt;/span&gt; &lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;pattern&amp;#39;&lt;/span&gt; &lt;span class="nt"&gt;package&lt;/span&gt; &lt;span class="nt"&gt;not&lt;/span&gt; &lt;span class="nt"&gt;found&lt;/span&gt;&lt;span class="o"&gt;;&lt;/span&gt; &lt;span class="nt"&gt;tag&lt;/span&gt; &lt;span class="nt"&gt;filters&lt;/span&gt; &lt;span class="nt"&gt;are&lt;/span&gt; &lt;span class="nt"&gt;not&lt;/span&gt; &lt;span class="nt"&gt;available&lt;/span&gt; &lt;span class="nt"&gt;for&lt;/span&gt; &lt;span class="nt"&gt;English&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;test_random_tweets&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;2018-06-21 13:41:59,527 : INFO : loading Dictionary object from bible.dict
+2018-06-21 13:41:59,541 : INFO : loaded bible.dict
+2018-06-21 13:41:59,552 : INFO : loaded corpus index from bible.mm.index
+2018-06-21 13:41:59,557 : INFO : initializing cython corpus reader from bible.mm
+2018-06-21 13:41:59,562 : INFO : accepted corpus with 31102 documents, 12255 features, 339121 non-zero entries
+2018-06-21 13:41:59,564 : INFO : loading LsiModel object from bible.lsi
+2018-06-21 13:42:09,193 : INFO : adding document #0 to Dictionary(0 unique tokens: [])
+2018-06-21 13:42:09,432 : INFO : adding document #10000 to Dictionary(6375 unique tokens: [&amp;#39;beginning&amp;#39;, &amp;#39;created&amp;#39;, &amp;#39;earth&amp;#39;, &amp;#39;god&amp;#39;, &amp;#39;heavens&amp;#39;]...)
+2018-06-21 13:42:09,651 : INFO : adding document #20000 to Dictionary(9840 unique tokens: [&amp;#39;beginning&amp;#39;, &amp;#39;created&amp;#39;, &amp;#39;earth&amp;#39;, &amp;#39;god&amp;#39;, &amp;#39;heavens&amp;#39;]...)
+2018-06-21 13:42:09,875 : INFO : adding document #30000 to Dictionary(12041 unique tokens: [&amp;#39;beginning&amp;#39;, &amp;#39;created&amp;#39;, &amp;#39;earth&amp;#39;, &amp;#39;god&amp;#39;, &amp;#39;heavens&amp;#39;]...)
+2018-06-21 13:42:09,905 : INFO : built Dictionary(12255 unique tokens: [&amp;#39;beginning&amp;#39;, &amp;#39;created&amp;#39;, &amp;#39;earth&amp;#39;, &amp;#39;god&amp;#39;, &amp;#39;heavens&amp;#39;]...) from 31102 documents (total 370556 corpus positions)
+2018-06-21 13:42:10,369 : INFO : using serial LSI version on this node
+2018-06-21 13:42:10,372 : INFO : updating model with new documents
+2018-06-21 13:42:10,375 : INFO : preparing a new chunk of documents
+2018-06-21 13:42:10,533 : INFO : using 100 extra samples and 2 power iterations
+2018-06-21 13:42:10,536 : INFO : 1st phase: constructing (12255, 200) action matrix
+2018-06-21 13:42:10,752 : INFO : orthonormalizing (12255, 200) action matrix
+2018-06-21 13:42:11,558 : INFO : 2nd phase: running dense svd on (200, 20000) matrix
+2018-06-21 13:42:12,703 : INFO : computing the final decomposition
+2018-06-21 13:42:12,707 : INFO : keeping 100 factors (discarding 18.237% of energy spectrum)
+2018-06-21 13:42:12,892 : INFO : processed documents up to #20000
+2018-06-21 13:42:12,900 : INFO : topic #0(128.237): 0.579*&amp;quot;shall&amp;quot; + 0.450*&amp;quot;yahweh&amp;quot; + 0.419*&amp;quot;i&amp;quot; + 0.176*&amp;quot;said&amp;quot; + 0.173*&amp;quot;god&amp;quot; + 0.131*&amp;quot;israel&amp;quot; + 0.108*&amp;quot;king&amp;quot; + 0.106*&amp;quot;the&amp;quot; + 0.087*&amp;quot;he&amp;quot; + 0.085*&amp;quot;house&amp;quot;
+2018-06-21 13:42:12,906 : INFO : topic #1(94.911): -0.741*&amp;quot;shall&amp;quot; + 0.569*&amp;quot;i&amp;quot; + 0.178*&amp;quot;yahweh&amp;quot; + 0.174*&amp;quot;said&amp;quot; + 0.089*&amp;quot;king&amp;quot; + 0.081*&amp;quot;god&amp;quot; + 0.069*&amp;quot;israel&amp;quot; + -0.056*&amp;quot;you&amp;quot; + 0.049*&amp;quot;son&amp;quot; + -0.045*&amp;quot;offering&amp;quot;
+2018-06-21 13:42:12,910 : INFO : topic #2(83.248): -0.656*&amp;quot;i&amp;quot; + 0.593*&amp;quot;yahweh&amp;quot; + -0.255*&amp;quot;shall&amp;quot; + 0.159*&amp;quot;israel&amp;quot; + 0.158*&amp;quot;god&amp;quot; + 0.138*&amp;quot;king&amp;quot; + 0.103*&amp;quot;the&amp;quot; + 0.081*&amp;quot;house&amp;quot; + 0.081*&amp;quot;children&amp;quot; + 0.076*&amp;quot;son&amp;quot;
+2018-06-21 13:42:12,913 : INFO : topic #3(70.173): -0.513*&amp;quot;yahweh&amp;quot; + 0.490*&amp;quot;king&amp;quot; + 0.355*&amp;quot;son&amp;quot; + 0.249*&amp;quot;the&amp;quot; + 0.243*&amp;quot;said&amp;quot; + 0.167*&amp;quot;israel&amp;quot; + 0.139*&amp;quot;he&amp;quot; + -0.124*&amp;quot;i&amp;quot; + 0.117*&amp;quot;children&amp;quot; + 0.107*&amp;quot;men&amp;quot;
+2018-06-21 13:42:12,919 : INFO : topic #4(57.722): -0.504*&amp;quot;said&amp;quot; + 0.451*&amp;quot;son&amp;quot; + 0.379*&amp;quot;children&amp;quot; + 0.350*&amp;quot;israel&amp;quot; + -0.339*&amp;quot;he&amp;quot; + 0.131*&amp;quot;i&amp;quot; + -0.129*&amp;quot;let&amp;quot; + -0.118*&amp;quot;us&amp;quot; + -0.109*&amp;quot;go&amp;quot; + -0.108*&amp;quot;god&amp;quot;
+2018-06-21 13:42:12,922 : INFO : preparing a new chunk of documents
+2018-06-21 13:42:13,026 : INFO : using 100 extra samples and 2 power iterations
+2018-06-21 13:42:13,031 : INFO : 1st phase: constructing (12255, 200) action matrix
+2018-06-21 13:42:13,162 : INFO : orthonormalizing (12255, 200) action matrix
+2018-06-21 13:42:14,004 : INFO : 2nd phase: running dense svd on (200, 11102) matrix
+2018-06-21 13:42:14,555 : INFO : computing the final decomposition
+2018-06-21 13:42:14,558 : INFO : keeping 100 factors (discarding 20.022% of energy spectrum)
+2018-06-21 13:42:14,734 : INFO : merging projections: (12255, 100) + (12255, 100)
+2018-06-21 13:42:15,064 : INFO : keeping 100 factors (discarding 5.910% of energy spectrum)
+2018-06-21 13:42:15,312 : INFO : processed documents up to #31102
+2018-06-21 13:42:15,316 : INFO : topic #0(152.944): 0.600*&amp;quot;i&amp;quot; + 0.513*&amp;quot;shall&amp;quot; + 0.354*&amp;quot;yahweh&amp;quot; + 0.169*&amp;quot;said&amp;quot; + 0.157*&amp;quot;god&amp;quot; + 0.104*&amp;quot;israel&amp;quot; + 0.092*&amp;quot;the&amp;quot; + 0.082*&amp;quot;king&amp;quot; + 0.082*&amp;quot;he&amp;quot; + 0.075*&amp;quot;land&amp;quot;
+2018-06-21 13:42:15,322 : INFO : topic #1(116.465): -0.735*&amp;quot;shall&amp;quot; + 0.651*&amp;quot;i&amp;quot; + 0.093*&amp;quot;said&amp;quot; + -0.062*&amp;quot;yahweh&amp;quot; + -0.050*&amp;quot;you&amp;quot; + -0.049*&amp;quot;offering&amp;quot; + -0.038*&amp;quot;the&amp;quot; + -0.025*&amp;quot;priest&amp;quot; + 0.023*&amp;quot;know&amp;quot; + 0.021*&amp;quot;for&amp;quot;
+2018-06-21 13:42:15,325 : INFO : topic #2(97.426): 0.592*&amp;quot;yahweh&amp;quot; + -0.415*&amp;quot;i&amp;quot; + -0.394*&amp;quot;shall&amp;quot; + 0.258*&amp;quot;god&amp;quot; + 0.177*&amp;quot;said&amp;quot; + 0.167*&amp;quot;israel&amp;quot; + 0.167*&amp;quot;king&amp;quot; + 0.144*&amp;quot;the&amp;quot; + 0.118*&amp;quot;son&amp;quot; + 0.107*&amp;quot;house&amp;quot;
+2018-06-21 13:42:15,328 : INFO : topic #3(79.927): -0.604*&amp;quot;yahweh&amp;quot; + 0.379*&amp;quot;said&amp;quot; + 0.303*&amp;quot;king&amp;quot; + 0.284*&amp;quot;son&amp;quot; + 0.245*&amp;quot;the&amp;quot; + 0.245*&amp;quot;he&amp;quot; + 0.145*&amp;quot;man&amp;quot; + 0.144*&amp;quot;one&amp;quot; + 0.096*&amp;quot;came&amp;quot; + -0.095*&amp;quot;i&amp;quot;
+2018-06-21 13:42:15,330 : INFO : topic #4(69.851): 0.857*&amp;quot;god&amp;quot; + -0.237*&amp;quot;king&amp;quot; + -0.213*&amp;quot;yahweh&amp;quot; + -0.164*&amp;quot;son&amp;quot; + -0.162*&amp;quot;the&amp;quot; + -0.105*&amp;quot;israel&amp;quot; + 0.103*&amp;quot;us&amp;quot; + -0.093*&amp;quot;children&amp;quot; + 0.077*&amp;quot;for&amp;quot; + 0.064*&amp;quot;jesus&amp;quot;
+2018-06-21 13:42:15,337 : WARNING : scanning corpus to determine the number of features (consider setting `num_features` explicitly)
+2018-06-21 13:42:16,933 : INFO : creating matrix with 31102 documents and 100 features
+2018-06-21 13:42:20,744 : INFO : saving Dictionary object under bible.dict, separately None
+2018-06-21 13:42:20,756 : INFO : saved bible.dict
+2018-06-21 13:42:20,762 : INFO : storing corpus in Matrix Market format to bible.mm
+2018-06-21 13:42:20,768 : INFO : saving sparse matrix to bible.mm
+2018-06-21 13:42:20,770 : INFO : PROGRESS: saving document #0
+2018-06-21 13:42:20,809 : INFO : PROGRESS: saving document #1000
+...
+2018-06-21 13:42:21,970 : INFO : PROGRESS: saving document #31000
+2018-06-21 13:42:21,977 : INFO : saved 31102x12255 matrix, density=0.089% (339121/381155010)
+2018-06-21 13:42:21,980 : INFO : saving MmCorpus index to bible.mm.index
+2018-06-21 13:42:21,985 : INFO : saving Projection object under bibl.lsi.projection, separately None
+2018-06-21 13:42:22,092 : INFO : saved bibl.lsi.projection
+2018-06-21 13:42:22,096 : INFO : saving LsiModel object under bibl.lsi, separately None
+2018-06-21 13:42:22,098 : INFO : not storing attribute projection
+2018-06-21 13:42:22,101 : INFO : not storing attribute dispatcher
+2018-06-21 13:42:22,110 : INFO : saved bibl.lsi
+2018-06-21 13:42:22,115 : INFO : saving MatrixSimilarity object under bible.index, separately None
+2018-06-21 13:42:22,250 : INFO : saved bible.index
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;-----------------
+Tweet text: @sustrans Kids to Newbridge primary in Bath have river cycle path close - but no safe way to travel 200m up hill &amp;amp; across A-road or to path
+
+Genesis 49:17, Dan will be a serpent in the way, an adder in the path, That bites the horse&amp;#39;s heels, so that his rider falls backward., 0.9940089583396912
+
+Psalm 80:12, Why have you broken down its walls, so that all those who pass by the way pluck it?, 0.9881158471107483
+
+Proverbs 13:6, Righteousness guards the way of integrity, but wickedness overthrows the sinner., 0.9859569668769836
+
+Genesis 35:19, Rachel died, and was buried in the way to Ephrath (the same is Bethlehem)., 0.9790574312210083
+
+Ezekiel 12:5, Dig through the wall in their sight, and carry your stuff out that way., 0.9741089344024658
+-----------------
+Tweet text: Stand-Up Comics Have to Censor Their Jokes on (US) College Campuses - The Atlantic http://t.co/W998v8oahs
+
+Lamentations 5:16, The crown is fallen from our head: Woe to us! for we have sinned., 0.9783570766448975
+
+Acts 28:2, The natives showed us uncommon kindness; for they kindled a fire, and received us all, because of the present rain, and because of the cold., 0.9126466512680054
+
+Deuteronomy 26:6, The Egyptians dealt ill with us, and afflicted us, and laid on us hard bondage:, 0.89407879114151
+
+Ezra 4:18, The letter which you sent to us has been plainly read before me., 0.863696277141571
+
+Judges 9:12, The trees said to the vine, &amp;#39;Come and reign over us.&amp;#39;, 0.8148699998855591
+-----------------
+Tweet text: Ha - was just reminded of the 90s Internet time limits, e.g. 5 hours online per week. Could do with that now.
+
+Ecclesiastes 3:4, a time to weep, and a time to laugh; a time to mourn, and a time to dance;, 0.9986615180969238
+
+Ecclesiastes 3:3, a time to kill, and a time to heal; a time to break down, and a time to build up;, 0.9981067180633545
+
+Matthew 26:16, From that time he sought opportunity to betray him., 0.9979551434516907
+
+Ecclesiastes 3:2, a time to be born, and a time to die; a time to plant, and a time to pluck up that which is planted;, 0.9977869987487793
+
+Hebrews 9:10, being only (with meats and drinks and various washings) fleshly ordinances, imposed until a time of reformation., 0.9975525736808777
+-----------------
+Tweet text: Here&amp;#39;s What Happened To All 53 of Marissa Mayer&amp;#39;s Yahoo Acquisitions https://t.co/0YT2TXncHN
+
+Luke 24:51, It happened, while he blessed them, that he withdrew from them, and was carried up into heaven., 0.8907666802406311
+
+Joshua 5:8, It happened, when they were done circumcising all the nation, that they stayed in their places in the camp until they were healed., 0.8737368583679199
+
+1 Kings 15:21, It happened, when Baasha heard of it, that he left off building Ramah, and lived in Tirzah., 0.8584436178207397
+
+Joshua 19:26, Allammelech, Amad, Mishal. It reached to Carmel westward, and to Shihorlibnath., 0.8564523458480835
+
+2 Corinthians 9:1, It is indeed unnecessary for me to write to you concerning the service to the saints,, 0.852521538734436
+-----------------
+Tweet text: Even with more complex deep architectures you can get a surprising amount done with simple ngram approaches - a future in hybrids? https://t.co/jD3pIhnIbP
+
+Daniel 9:5, we have sinned, and have dealt perversely, and have done wickedly, and have rebelled, even turning aside from your precepts and from your ordinances;, 0.9942108988761902
+
+Ephesians 5:11, Have no fellowship with the unfruitful works of darkness, but rather even reprove them., 0.9036127924919128
+
+Joshua 10:41, Joshua struck them from Kadesh Barnea even to Gaza, and all the country of Goshen, even to Gibeon., 0.885510265827179
+
+Numbers 21:30, We have shot at them. Heshbon has perished even to Dibon. We have laid waste even to Nophah, Which reaches to Medeba., 0.8847762942314148
+
+Deuteronomy 4:48, from Aroer, which is on the edge of the valley of the Arnon, even to Mount Sion (the same is Hermon),, 0.882093071937561
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h3&gt;Comparing Approaches&lt;/h3&gt;
+&lt;p&gt;To compare the approaches, let's generate 200 random examples and take the top match for each of the three techniques. We will then manually score each match on a scale of 0 to 5 where 0 = no match and 5 = perfect match. Then we can see which technique comes up on top.&lt;/p&gt;
+&lt;p&gt;The easiest way to quickly compare the results is to export to a spreadsheet, with columns for the scores of each.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;get_difflib_matches&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;Match a tweet against the bible_data.&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="c1"&gt;# Get matches&lt;/span&gt;
+    &lt;span class="n"&gt;scores&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;
+        &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;SequenceMatcher&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="bp"&gt;None&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;ratio&lt;/span&gt;&lt;span class="p"&gt;())&lt;/span&gt;
+        &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;
+    &lt;span class="p"&gt;]&lt;/span&gt;
+    &lt;span class="c1"&gt;# Sort by descending score&lt;/span&gt;
+    &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sort&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;key&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;lambda&lt;/span&gt; &lt;span class="n"&gt;tup&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="n"&gt;tup&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="n"&gt;reverse&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="bp"&gt;True&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;scores&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;get_spacy_matches&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;spacy_tweet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;spacy_bible&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;Perform matches on text as spacy docs&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="c1"&gt;# Get matches&lt;/span&gt;
+    &lt;span class="n"&gt;scores&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;
+        &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;spacy_tweet&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;similarity&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;passage&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+        &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;spacy_bible&lt;/span&gt;
+    &lt;span class="p"&gt;]&lt;/span&gt;
+    &lt;span class="c1"&gt;# Sort by descending score&lt;/span&gt;
+    &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sort&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;key&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;lambda&lt;/span&gt; &lt;span class="n"&gt;tup&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="n"&gt;tup&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="n"&gt;reverse&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="bp"&gt;True&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;scores&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;get_gensim_matches&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;index&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="sd"&gt;&amp;quot;&amp;quot;&amp;quot;Match a tweet against the bible_data.&amp;quot;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="c1"&gt;# To run this we need dictionary, lsi, and index variables&lt;/span&gt;
+    &lt;span class="c1"&gt;# Get matches&lt;/span&gt;
+    &lt;span class="n"&gt;vec_lsi&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;text2vec&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;sims&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;index&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;vec_lsi&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="c1"&gt;# perform a similarity query against the corpus&lt;/span&gt;
+    &lt;span class="n"&gt;scores&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[(&lt;/span&gt;&lt;span class="n"&gt;v&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;s&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;v&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="n"&gt;s&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="nb"&gt;zip&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;sims&lt;/span&gt;&lt;span class="p"&gt;)]&lt;/span&gt;
+    &lt;span class="c1"&gt;# Sort by descending score&lt;/span&gt;
+    &lt;span class="n"&gt;scores&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sort&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;key&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;lambda&lt;/span&gt; &lt;span class="n"&gt;tup&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="n"&gt;tup&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="n"&gt;reverse&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="bp"&gt;True&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;scores&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;spacy_bible&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[(&lt;/span&gt;&lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;nlp&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;passage&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;verse&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;passage&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;corpus&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;index&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;build_data&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;2018-06-23 09:02:25,811 : INFO : adding document #0 to Dictionary(0 unique tokens: [])
+2018-06-23 09:02:26,052 : INFO : adding document #10000 to Dictionary(6375 unique tokens: [&amp;#39;beginning&amp;#39;, &amp;#39;created&amp;#39;, &amp;#39;earth&amp;#39;, &amp;#39;god&amp;#39;, &amp;#39;heavens&amp;#39;]...)
+2018-06-23 09:02:26,272 : INFO : adding document #20000 to Dictionary(9840 unique tokens: [&amp;#39;beginning&amp;#39;, &amp;#39;created&amp;#39;, &amp;#39;earth&amp;#39;, &amp;#39;god&amp;#39;, &amp;#39;heavens&amp;#39;]...)
+2018-06-23 09:02:26,491 : INFO : adding document #30000 to Dictionary(12041 unique tokens: [&amp;#39;beginning&amp;#39;, &amp;#39;created&amp;#39;, &amp;#39;earth&amp;#39;, &amp;#39;god&amp;#39;, &amp;#39;heavens&amp;#39;]...)
+2018-06-23 09:02:26,516 : INFO : built Dictionary(12255 unique tokens: [&amp;#39;beginning&amp;#39;, &amp;#39;created&amp;#39;, &amp;#39;earth&amp;#39;, &amp;#39;god&amp;#39;, &amp;#39;heavens&amp;#39;]...) from 31102 documents (total 370556 corpus positions)
+2018-06-23 09:02:26,953 : INFO : using serial LSI version on this node
+2018-06-23 09:02:26,954 : INFO : updating model with new documents
+2018-06-23 09:02:26,955 : INFO : preparing a new chunk of documents
+2018-06-23 09:02:27,111 : INFO : using 100 extra samples and 2 power iterations
+2018-06-23 09:02:27,112 : INFO : 1st phase: constructing (12255, 200) action matrix
+2018-06-23 09:02:27,349 : INFO : orthonormalizing (12255, 200) action matrix
+2018-06-23 09:02:28,118 : INFO : 2nd phase: running dense svd on (200, 20000) matrix
+2018-06-23 09:02:29,147 : INFO : computing the final decomposition
+2018-06-23 09:02:29,161 : INFO : keeping 100 factors (discarding 18.228% of energy spectrum)
+2018-06-23 09:02:29,352 : INFO : processed documents up to #20000
+2018-06-23 09:02:29,357 : INFO : topic #0(128.237): 0.579*&amp;quot;shall&amp;quot; + 0.450*&amp;quot;yahweh&amp;quot; + 0.419*&amp;quot;i&amp;quot; + 0.176*&amp;quot;said&amp;quot; + 0.173*&amp;quot;god&amp;quot; + 0.131*&amp;quot;israel&amp;quot; + 0.108*&amp;quot;king&amp;quot; + 0.106*&amp;quot;the&amp;quot; + 0.087*&amp;quot;he&amp;quot; + 0.085*&amp;quot;house&amp;quot;
+2018-06-23 09:02:29,359 : INFO : topic #1(94.911): 0.741*&amp;quot;shall&amp;quot; + -0.569*&amp;quot;i&amp;quot; + -0.178*&amp;quot;yahweh&amp;quot; + -0.174*&amp;quot;said&amp;quot; + -0.089*&amp;quot;king&amp;quot; + -0.081*&amp;quot;god&amp;quot; + -0.069*&amp;quot;israel&amp;quot; + 0.056*&amp;quot;you&amp;quot; + -0.049*&amp;quot;son&amp;quot; + 0.045*&amp;quot;offering&amp;quot;
+2018-06-23 09:02:29,361 : INFO : topic #2(83.248): -0.656*&amp;quot;i&amp;quot; + 0.593*&amp;quot;yahweh&amp;quot; + -0.255*&amp;quot;shall&amp;quot; + 0.159*&amp;quot;israel&amp;quot; + 0.158*&amp;quot;god&amp;quot; + 0.138*&amp;quot;king&amp;quot; + 0.103*&amp;quot;the&amp;quot; + 0.081*&amp;quot;house&amp;quot; + 0.081*&amp;quot;children&amp;quot; + 0.076*&amp;quot;son&amp;quot;
+2018-06-23 09:02:29,363 : INFO : topic #3(70.173): 0.513*&amp;quot;yahweh&amp;quot; + -0.490*&amp;quot;king&amp;quot; + -0.355*&amp;quot;son&amp;quot; + -0.249*&amp;quot;the&amp;quot; + -0.243*&amp;quot;said&amp;quot; + -0.167*&amp;quot;israel&amp;quot; + -0.139*&amp;quot;he&amp;quot; + 0.124*&amp;quot;i&amp;quot; + -0.117*&amp;quot;children&amp;quot; + -0.107*&amp;quot;men&amp;quot;
+2018-06-23 09:02:29,365 : INFO : topic #4(57.722): 0.504*&amp;quot;said&amp;quot; + -0.451*&amp;quot;son&amp;quot; + -0.379*&amp;quot;children&amp;quot; + -0.350*&amp;quot;israel&amp;quot; + 0.339*&amp;quot;he&amp;quot; + -0.131*&amp;quot;i&amp;quot; + 0.129*&amp;quot;let&amp;quot; + 0.118*&amp;quot;us&amp;quot; + 0.109*&amp;quot;go&amp;quot; + 0.108*&amp;quot;god&amp;quot;
+2018-06-23 09:02:29,367 : INFO : preparing a new chunk of documents
+2018-06-23 09:02:29,467 : INFO : using 100 extra samples and 2 power iterations
+2018-06-23 09:02:29,469 : INFO : 1st phase: constructing (12255, 200) action matrix
+2018-06-23 09:02:29,587 : INFO : orthonormalizing (12255, 200) action matrix
+2018-06-23 09:02:30,386 : INFO : 2nd phase: running dense svd on (200, 11102) matrix
+2018-06-23 09:02:30,731 : INFO : computing the final decomposition
+2018-06-23 09:02:30,732 : INFO : keeping 100 factors (discarding 19.942% of energy spectrum)
+2018-06-23 09:02:30,935 : INFO : merging projections: (12255, 100) + (12255, 100)
+2018-06-23 09:02:31,243 : INFO : keeping 100 factors (discarding 5.902% of energy spectrum)
+2018-06-23 09:02:31,483 : INFO : processed documents up to #31102
+2018-06-23 09:02:31,485 : INFO : topic #0(152.944): 0.600*&amp;quot;i&amp;quot; + 0.513*&amp;quot;shall&amp;quot; + 0.354*&amp;quot;yahweh&amp;quot; + 0.169*&amp;quot;said&amp;quot; + 0.157*&amp;quot;god&amp;quot; + 0.104*&amp;quot;israel&amp;quot; + 0.092*&amp;quot;the&amp;quot; + 0.082*&amp;quot;king&amp;quot; + 0.082*&amp;quot;he&amp;quot; + 0.075*&amp;quot;land&amp;quot;
+2018-06-23 09:02:31,486 : INFO : topic #1(116.465): -0.735*&amp;quot;shall&amp;quot; + 0.651*&amp;quot;i&amp;quot; + 0.093*&amp;quot;said&amp;quot; + -0.062*&amp;quot;yahweh&amp;quot; + -0.050*&amp;quot;you&amp;quot; + -0.049*&amp;quot;offering&amp;quot; + -0.038*&amp;quot;the&amp;quot; + -0.025*&amp;quot;priest&amp;quot; + 0.023*&amp;quot;know&amp;quot; + 0.021*&amp;quot;for&amp;quot;
+2018-06-23 09:02:31,487 : INFO : topic #2(97.426): 0.592*&amp;quot;yahweh&amp;quot; + -0.415*&amp;quot;i&amp;quot; + -0.394*&amp;quot;shall&amp;quot; + 0.258*&amp;quot;god&amp;quot; + 0.177*&amp;quot;said&amp;quot; + 0.167*&amp;quot;israel&amp;quot; + 0.167*&amp;quot;king&amp;quot; + 0.144*&amp;quot;the&amp;quot; + 0.118*&amp;quot;son&amp;quot; + 0.107*&amp;quot;house&amp;quot;
+2018-06-23 09:02:31,489 : INFO : topic #3(79.928): -0.604*&amp;quot;yahweh&amp;quot; + 0.379*&amp;quot;said&amp;quot; + 0.303*&amp;quot;king&amp;quot; + 0.284*&amp;quot;son&amp;quot; + 0.245*&amp;quot;the&amp;quot; + 0.245*&amp;quot;he&amp;quot; + 0.145*&amp;quot;man&amp;quot; + 0.144*&amp;quot;one&amp;quot; + 0.096*&amp;quot;came&amp;quot; + -0.095*&amp;quot;i&amp;quot;
+2018-06-23 09:02:31,491 : INFO : topic #4(69.852): 0.857*&amp;quot;god&amp;quot; + -0.237*&amp;quot;king&amp;quot; + -0.213*&amp;quot;yahweh&amp;quot; + -0.165*&amp;quot;son&amp;quot; + -0.162*&amp;quot;the&amp;quot; + -0.105*&amp;quot;israel&amp;quot; + 0.103*&amp;quot;us&amp;quot; + -0.093*&amp;quot;children&amp;quot; + 0.077*&amp;quot;for&amp;quot; + 0.064*&amp;quot;jesus&amp;quot;
+2018-06-23 09:02:31,492 : WARNING : scanning corpus to determine the number of features (consider setting `num_features` explicitly)
+2018-06-23 09:02:32,948 : INFO : creating matrix with 31102 documents and 100 features
+2018-06-23 09:02:36,645 : INFO : saving Dictionary object under bible.dict, separately None
+2018-06-23 09:02:36,713 : INFO : saved bible.dict
+2018-06-23 09:02:36,714 : INFO : storing corpus in Matrix Market format to bible.mm
+2018-06-23 09:02:36,715 : INFO : saving sparse matrix to bible.mm
+2018-06-23 09:02:36,716 : INFO : PROGRESS: saving document #0
+2018-06-23 09:02:36,753 : INFO : PROGRESS: saving document #1000
+2018-06-23 09:02:36,789 : INFO : PROGRESS: saving document #2000
+2018-06-23 09:02:36,832 : INFO : PROGRESS: saving document #3000
+2018-06-23 09:02:36,863 : INFO : PROGRESS: saving document #4000
+2018-06-23 09:02:36,898 : INFO : PROGRESS: saving document #5000
+2018-06-23 09:02:36,933 : INFO : PROGRESS: saving document #6000
+2018-06-23 09:02:36,970 : INFO : PROGRESS: saving document #7000
+2018-06-23 09:02:37,005 : INFO : PROGRESS: saving document #8000
+2018-06-23 09:02:37,041 : INFO : PROGRESS: saving document #9000
+2018-06-23 09:02:37,081 : INFO : PROGRESS: saving document #10000
+2018-06-23 09:02:37,123 : INFO : PROGRESS: saving document #11000
+2018-06-23 09:02:37,169 : INFO : PROGRESS: saving document #12000
+2018-06-23 09:02:37,200 : INFO : PROGRESS: saving document #13000
+2018-06-23 09:02:37,224 : INFO : PROGRESS: saving document #14000
+2018-06-23 09:02:37,251 : INFO : PROGRESS: saving document #15000
+2018-06-23 09:02:37,277 : INFO : PROGRESS: saving document #16000
+2018-06-23 09:02:37,311 : INFO : PROGRESS: saving document #17000
+2018-06-23 09:02:37,350 : INFO : PROGRESS: saving document #18000
+2018-06-23 09:02:37,386 : INFO : PROGRESS: saving document #19000
+2018-06-23 09:02:37,421 : INFO : PROGRESS: saving document #20000
+2018-06-23 09:02:37,453 : INFO : PROGRESS: saving document #21000
+2018-06-23 09:02:37,488 : INFO : PROGRESS: saving document #22000
+2018-06-23 09:02:37,522 : INFO : PROGRESS: saving document #23000
+2018-06-23 09:02:37,563 : INFO : PROGRESS: saving document #24000
+2018-06-23 09:02:37,591 : INFO : PROGRESS: saving document #25000
+2018-06-23 09:02:37,621 : INFO : PROGRESS: saving document #26000
+2018-06-23 09:02:37,648 : INFO : PROGRESS: saving document #27000
+2018-06-23 09:02:37,680 : INFO : PROGRESS: saving document #28000
+2018-06-23 09:02:37,719 : INFO : PROGRESS: saving document #29000
+2018-06-23 09:02:37,758 : INFO : PROGRESS: saving document #30000
+2018-06-23 09:02:37,790 : INFO : PROGRESS: saving document #31000
+2018-06-23 09:02:37,795 : INFO : saved 31102x12255 matrix, density=0.089% (339121/381155010)
+2018-06-23 09:02:37,797 : INFO : saving MmCorpus index to bible.mm.index
+2018-06-23 09:02:37,799 : INFO : saving Projection object under bible.lsi.projection, separately None
+2018-06-23 09:02:37,944 : INFO : saved bible.lsi.projection
+2018-06-23 09:02:37,945 : INFO : saving LsiModel object under bible.lsi, separately None
+2018-06-23 09:02:37,946 : INFO : not storing attribute projection
+2018-06-23 09:02:37,947 : INFO : not storing attribute dispatcher
+2018-06-23 09:02:37,953 : INFO : saved bible.lsi
+2018-06-23 09:02:37,954 : INFO : saving MatrixSimilarity object under bible.index, separately None
+2018-06-23 09:02:38,053 : INFO : saved bible.index
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;random&lt;/span&gt;
+
+&lt;span class="n"&gt;rows&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[]&lt;/span&gt;
+&lt;span class="n"&gt;k&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;200&lt;/span&gt;
+&lt;span class="n"&gt;num_tweets&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;indices&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;random&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sample&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;range&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;num_tweets&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="n"&gt;k&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;indices&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="n"&gt;tweet&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;tweets&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+    &lt;span class="n"&gt;dl_match&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;get_difflib_matches&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;)[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+    &lt;span class="n"&gt;spacy_tweet&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;nlp&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;sp_match&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;get_spacy_matches&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;spacy_tweet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;spacy_bible&lt;/span&gt;&lt;span class="p"&gt;)[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+    &lt;span class="n"&gt;gs_match&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;get_gensim_matches&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;bible_data&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;dictionary&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;lsi&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;index&lt;/span&gt;&lt;span class="p"&gt;)[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+    &lt;span class="n"&gt;comparison_row&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;
+        &lt;span class="n"&gt;tweet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+        &lt;span class="n"&gt;dl_match&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="n"&gt;dl_match&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+        &lt;span class="n"&gt;sp_match&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;text&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;sp_match&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+        &lt;span class="n"&gt;gs_match&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="n"&gt;gs_match&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;&amp;quot;&lt;/span&gt;
+    &lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;rows&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;append&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;comparison_row&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;pickle&lt;/span&gt;
+&lt;span class="k"&gt;with&lt;/span&gt; &lt;span class="nb"&gt;open&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;rows.pkl&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;wb&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;as&lt;/span&gt; &lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="n"&gt;pickle&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;dump&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;rows&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;pandas&lt;/span&gt; &lt;span class="kn"&gt;as&lt;/span&gt; &lt;span class="nn"&gt;pd&lt;/span&gt;
+
+&lt;span class="n"&gt;row_df&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;pd&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;DataFrame&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;rows&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="k"&gt;del&lt;/span&gt; &lt;span class="n"&gt;rows&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;row_df&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;head&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div&gt;
+&lt;style scoped&gt;
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+&lt;/style&gt;
+&lt;table border="1" class="dataframe"&gt;
+  &lt;thead&gt;
+    &lt;tr style="text-align: right;"&gt;
+      &lt;th&gt;&lt;/th&gt;
+      &lt;th&gt;0&lt;/th&gt;
+      &lt;th&gt;1&lt;/th&gt;
+      &lt;th&gt;2&lt;/th&gt;
+      &lt;th&gt;3&lt;/th&gt;
+      &lt;th&gt;4&lt;/th&gt;
+      &lt;th&gt;5&lt;/th&gt;
+      &lt;th&gt;6&lt;/th&gt;
+      &lt;th&gt;7&lt;/th&gt;
+      &lt;th&gt;8&lt;/th&gt;
+      &lt;th&gt;9&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;th&gt;0&lt;/th&gt;
+      &lt;td&gt;Also: if your patent specification does not co...&lt;/td&gt;
+      &lt;td&gt;Therefore you need to be in subjection, not on...&lt;/td&gt;
+      &lt;td&gt;0.420168&lt;/td&gt;
+      &lt;td&gt;&lt;/td&gt;
+      &lt;td&gt;But whatever has a blemish, that you shall not...&lt;/td&gt;
+      &lt;td&gt;0.921702&lt;/td&gt;
+      &lt;td&gt;&lt;/td&gt;
+      &lt;td&gt;There is one body, and one Spirit, even as you...&lt;/td&gt;
+      &lt;td&gt;0.836346&lt;/td&gt;
+      &lt;td&gt;&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;1&lt;/th&gt;
+      &lt;td&gt;The CImg Library - C++ Template Image Processi...&lt;/td&gt;
+      &lt;td&gt;the people which I formed for myself, that the...&lt;/td&gt;
+      &lt;td&gt;0.374384&lt;/td&gt;
+      &lt;td&gt;&lt;/td&gt;
+      &lt;td&gt;For the house he made windows of fixed lattice...&lt;/td&gt;
+      &lt;td&gt;0.736559&lt;/td&gt;
+      &lt;td&gt;&lt;/td&gt;
+      &lt;td&gt;The sound of a cry from Horonaim, desolation a...&lt;/td&gt;
+      &lt;td&gt;0.971526&lt;/td&gt;
+      &lt;td&gt;&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;2&lt;/th&gt;
+      &lt;td&gt;Criteria for boilerplate legal text: it should...&lt;/td&gt;
+      &lt;td&gt;He began to build in the second [day] of the s...&lt;/td&gt;
+      &lt;td&gt;0.447368&lt;/td&gt;
+      &lt;td&gt;&lt;/td&gt;
+      &lt;td&gt;It's also written in your law that the testimo...&lt;/td&gt;
+      &lt;td&gt;0.923304&lt;/td&gt;
+      &lt;td&gt;&lt;/td&gt;
+      &lt;td&gt;the two pillars, and the two bowls of the capi...&lt;/td&gt;
+      &lt;td&gt;0.711855&lt;/td&gt;
+      &lt;td&gt;&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;3&lt;/th&gt;
+      &lt;td&gt;Hadn't realised: the difference between deduct...&lt;/td&gt;
+      &lt;td&gt;and the avenger of blood find him outside of t...&lt;/td&gt;
+      &lt;td&gt;0.386946&lt;/td&gt;
+      &lt;td&gt;&lt;/td&gt;
+      &lt;td&gt;However in the assembly I would rather speak f...&lt;/td&gt;
+      &lt;td&gt;0.927348&lt;/td&gt;
+      &lt;td&gt;&lt;/td&gt;
+      &lt;td&gt;Should he reason with unprofitable talk, or wi...&lt;/td&gt;
+      &lt;td&gt;0.997764&lt;/td&gt;
+      &lt;td&gt;&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;4&lt;/th&gt;
+      &lt;td&gt;You need to be wrong on certain things in orde...&lt;/td&gt;
+      &lt;td&gt;No eye pitied you, to do any of these things t...&lt;/td&gt;
+      &lt;td&gt;0.452830&lt;/td&gt;
+      &lt;td&gt;&lt;/td&gt;
+      &lt;td&gt;Be of the same mind one toward another. Don't ...&lt;/td&gt;
+      &lt;td&gt;0.966708&lt;/td&gt;
+      &lt;td&gt;&lt;/td&gt;
+      &lt;td&gt;You are witnesses of these things.&lt;/td&gt;
+      &lt;td&gt;0.823695&lt;/td&gt;
+      &lt;td&gt;&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+&lt;/div&gt;
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="err"&gt;!&lt;/span&gt;&lt;span class="n"&gt;pip3&lt;/span&gt; &lt;span class="n"&gt;install&lt;/span&gt; &lt;span class="n"&gt;xlwt&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;Collecting xlwt
+[?25l  Downloading https://files.pythonhosted.org/packages/44/48/def306413b25c3d01753603b1a222a011b8621aed27cd7f89cbc27e6b0f4/xlwt-1.3.0-py2.py3-none-any.whl (99kB)
+[K    100% |################################| 102kB 2.9MB/s a 0:00:011
+[?25hInstalling collected packages: xlwt
+Successfully installed xlwt-1.3.0
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;row_df&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;to_excel&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;comparison.xls&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;</content><category term="initial_model"></category></entry><entry><title>2. Tweet2Bible - Exploring the Data</title><link href="https://benhoyle.github.io/part-2-tweet2bible-exploring-the-data.html" rel="alternate"></link><published>2018-06-25T09:33:59+01:00</published><updated>2018-06-25T09:33:59+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-25:/part-2-tweet2bible-exploring-the-data.html</id><summary type="html">&lt;p&gt;This post explores the data for our Tweet2Bible experiments.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;2. Tweet2Bible - Exploring the Data&lt;/h1&gt;
+&lt;p&gt;In the previous post we looked at the problem for our current project: how to match a tweet to passages of the Bible.&lt;/p&gt;
+&lt;p&gt;In this post we will look at the steps required to prepare some data for our algorithms. We will also look at the nature of the data, which may give us some insights as to how we transform our data in later stages.&lt;/p&gt;
+&lt;h2&gt;Getting the Data&lt;/h2&gt;
+&lt;h3&gt;Tweets&lt;/h3&gt;
+&lt;p&gt;Twitter offers an option in the settings to download your tweet archive. Log in to the web version, goto account settings and click the "Download Archive" button. You will then be sent an email with a link to the data.&lt;/p&gt;
+&lt;p&gt;Fair play to Twitter, the archive is quite cool. You get a CSV file with your tweets and some other useful data, plus a JSON archive (which can be viewed via a local HTML file). To keep things simple we'll just use the CSV file for now.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;csv&lt;/span&gt;
+&lt;span class="k"&gt;with&lt;/span&gt; &lt;span class="nb"&gt;open&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;tweets.csv&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;newline&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;encoding&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;utf-8&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;as&lt;/span&gt; &lt;span class="n"&gt;csvfile&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="n"&gt;casereader&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;csv&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;reader&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;csvfile&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;delimiter&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;,&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;data&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;row&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;row&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;casereader&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[&amp;#39;tweet_id&amp;#39;,
+ &amp;#39;in_reply_to_status_id&amp;#39;,
+ &amp;#39;in_reply_to_user_id&amp;#39;,
+ &amp;#39;timestamp&amp;#39;,
+ &amp;#39;source&amp;#39;,
+ &amp;#39;text&amp;#39;,
+ &amp;#39;retweeted_status_id&amp;#39;,
+ &amp;#39;retweeted_status_user_id&amp;#39;,
+ &amp;#39;retweeted_status_timestamp&amp;#39;,
+ &amp;#39;expanded_urls&amp;#39;]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[[&amp;#39;1009719610910957568&amp;#39;,
+  &amp;#39;1009527946036613121&amp;#39;,
+  &amp;#39;20524211&amp;#39;,
+  &amp;#39;2018-06-21 08:48:09 +0000&amp;#39;,
+  &amp;#39;&lt;span class="nt"&gt;&amp;lt;a&lt;/span&gt; &lt;span class="na"&gt;href=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;http://twitter.com&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;rel=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;nofollow&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;Twitter Web Client&lt;span class="nt"&gt;&amp;lt;/a&amp;gt;&lt;/span&gt;&amp;#39;,
+  &amp;quot;@patently It&amp;#39;s okay - whatever photo storage app you use is already plugged into the system.&amp;quot;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;&amp;#39;],
+ [&amp;#39;1009409717205168128&amp;#39;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;2018-06-20 12:16:45 +0000&amp;#39;,
+  &amp;#39;&lt;span class="nt"&gt;&amp;lt;a&lt;/span&gt; &lt;span class="na"&gt;href=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;http://twitter.com/download/iphone&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;rel=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;nofollow&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;Twitter for iPhone&lt;span class="nt"&gt;&amp;lt;/a&amp;gt;&lt;/span&gt;&amp;#39;,
+  &amp;#39;I love all the people the computer said “looked a bit like Rick Astley” including, I think, JFK, Jesus and Norman Bates. https://t.co/HHI0HFU0Cy&amp;#39;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;https://twitter.com/quasimondo/status/1009369380042485760&amp;#39;]]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;For now we will just extract the text to get a list of strings.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;D1&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;d&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;d&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;:]]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;D1&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[&amp;quot;@patently It&amp;#39;s okay - whatever photo storage app you use is already plugged into the system.&amp;quot;,
+ &amp;#39;I love all the people the computer said “looked a bit like Rick Astley” including, I think, JFK, Jesus and Norman Bates. https://t.co/HHI0HFU0Cy&amp;#39;,
+ &amp;quot;“These were ancient engineers with a genius that allowed people to walk multi-tonne statues and roll multi-tonne hats - which teaches us about the society&amp;#39;s investment in honouring their ancestors. It&amp;#39;s quite a remarkable accomplishment” https://t.co/DzscvwJ0do https://t.co/Q7B8ioRS0h&amp;quot;,
+ &amp;#39;KPMG audit work unacceptable - watchdog https://t.co/9np6lWkHTG [Average remuneration per partner in 2016 = £582k]&amp;#39;,
+ &amp;#39;Ooo Le Sud by Nino Ferrer - well done @SpotifyUK algorithms https://t.co/ANxMxVWiJV [Question is do I prefer the original French or Nino’s English version? Also check out the brilliantly proggy Métronomie]&amp;#39;]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;We have {0} tweets.&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;D1&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&amp;#39;We have 9806 tweets.&amp;#39;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Looking at some of our tweets, we need to unescape the text such that "&amp;amp;" is converted to "&amp;amp;". This can be performed using the html library.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;html&lt;/span&gt;
+
+&lt;span class="n"&gt;D1&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;html&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;unescape&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;t&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;t&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;D1&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h3&gt;Bible&lt;/h3&gt;
+&lt;p&gt;The Bible is actually quite a good source of text for natural language processing projects. &lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;it is free; &lt;/li&gt;
+&lt;li&gt;people want to make it easy to distribute; &lt;/li&gt;
+&lt;li&gt;it is naturally broken down into short passages; and&lt;/li&gt;
+&lt;li&gt;it contains a variety of styles (I like to thing of it as a 2000 year old Wikipedia for middle-eastern farmers).&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;For this project I went to &lt;a href="http://biblehub.net/database/"&gt;BibleHub.net&lt;/a&gt; which offers an Excel spreadsheet featuring 10 different versions of the Bible, where each row is a different verse. You get a free username and password in exchange for registration using an email address.&lt;/p&gt;
+&lt;p&gt;We can use Pandas to convert the spreadsheet into useful Python data. We then need to pick a Bible to use. I think the most modern translation will probably be best. &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;pandas&lt;/span&gt; &lt;span class="kn"&gt;as&lt;/span&gt; &lt;span class="nn"&gt;pd&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Pandas needs the xlrd package to read excel files&lt;/span&gt;
+&lt;span class="err"&gt;!&lt;/span&gt;&lt;span class="n"&gt;pip3&lt;/span&gt; &lt;span class="n"&gt;install&lt;/span&gt; &lt;span class="n"&gt;xlrd&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;Collecting xlrd
+[?25l  Downloading https://files.pythonhosted.org/packages/07/e6/e95c4eec6221bfd8528bcc4ea252a850bffcc4be88ebc367e23a1a84b0bb/xlrd-1.1.0-py2.py3-none-any.whl (108kB)
+[K    100% |################################| 112kB 1.1MB/s ta 0:00:01   65% |#####################           | 71kB 2.0MB/s eta 0:00:01
+[?25hInstalling collected packages: xlrd
+Successfully installed xlrd-1.1.0
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="nb"&gt;file&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;bibles.xls&amp;#39;&lt;/span&gt;
+&lt;span class="n"&gt;df&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;pd&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;read_excel&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;file&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;df&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;head&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div&gt;
+&lt;style scoped&gt;
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+&lt;/style&gt;
+&lt;table border="1" class="dataframe"&gt;
+  &lt;thead&gt;
+    &lt;tr style="text-align: right;"&gt;
+      &lt;th&gt;&lt;/th&gt;
+      &lt;th&gt;Verse&lt;/th&gt;
+      &lt;th&gt;King James Bible&lt;/th&gt;
+      &lt;th&gt;American Standard Version&lt;/th&gt;
+      &lt;th&gt;Douay-Rheims Bible&lt;/th&gt;
+      &lt;th&gt;Darby Bible Translation&lt;/th&gt;
+      &lt;th&gt;English Revised Version&lt;/th&gt;
+      &lt;th&gt;Webster Bible Translation&lt;/th&gt;
+      &lt;th&gt;World English Bible&lt;/th&gt;
+      &lt;th&gt;Young's Literal Translation&lt;/th&gt;
+      &lt;th&gt;American King James Version&lt;/th&gt;
+      &lt;th&gt;Weymouth New Testament&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;th&gt;0&lt;/th&gt;
+      &lt;td&gt;Genesis 1:1&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heaven and th...&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heavens and t...&lt;/td&gt;
+      &lt;td&gt;In the beginning God created heaven, and earth.&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heavens and t...&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heaven and th...&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heaven and th...&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heavens and t...&lt;/td&gt;
+      &lt;td&gt;In the beginning of God's preparing the heaven...&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heaven and th...&lt;/td&gt;
+      &lt;td&gt;NaN&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;1&lt;/th&gt;
+      &lt;td&gt;Genesis 1:2&lt;/td&gt;
+      &lt;td&gt;And the earth was without form, and void; and ...&lt;/td&gt;
+      &lt;td&gt;And the earth was waste and void; and darkness...&lt;/td&gt;
+      &lt;td&gt;And the earth was void and empty, and darkness...&lt;/td&gt;
+      &lt;td&gt;And the earth was waste and empty, and darknes...&lt;/td&gt;
+      &lt;td&gt;And the earth was waste and void; and darkness...&lt;/td&gt;
+      &lt;td&gt;And the earth was without form, and void; and ...&lt;/td&gt;
+      &lt;td&gt;Now the earth was formless and empty. Darkness...&lt;/td&gt;
+      &lt;td&gt;the earth hath existed waste and void, and dar...&lt;/td&gt;
+      &lt;td&gt;And the earth was without form, and void; and ...&lt;/td&gt;
+      &lt;td&gt;NaN&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;2&lt;/th&gt;
+      &lt;td&gt;Genesis 1:3&lt;/td&gt;
+      &lt;td&gt;And God said, Let there be light: and there wa...&lt;/td&gt;
+      &lt;td&gt;And God said, Let there be light: and there wa...&lt;/td&gt;
+      &lt;td&gt;And God said: Be light made. And light was made.&lt;/td&gt;
+      &lt;td&gt;And God said, Let there be light. And there wa...&lt;/td&gt;
+      &lt;td&gt;And God said, Let there be light: and there wa...&lt;/td&gt;
+      &lt;td&gt;And God said, Let there be light: and there wa...&lt;/td&gt;
+      &lt;td&gt;God said, |Let there be light,| and there was ...&lt;/td&gt;
+      &lt;td&gt;and God saith, 'Let light be;' and light is.&lt;/td&gt;
+      &lt;td&gt;And God said, Let there be light: and there wa...&lt;/td&gt;
+      &lt;td&gt;NaN&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;3&lt;/th&gt;
+      &lt;td&gt;Genesis 1:4&lt;/td&gt;
+      &lt;td&gt;And God saw the light, that &amp;lt;i&amp;gt;it was&amp;lt;/i&amp;gt; good...&lt;/td&gt;
+      &lt;td&gt;And God saw the light, that it was good: and G...&lt;/td&gt;
+      &lt;td&gt;And God saw the light that it was good; and he...&lt;/td&gt;
+      &lt;td&gt;And God saw the light that it was good; and Go...&lt;/td&gt;
+      &lt;td&gt;And God saw the light, that it was good: and G...&lt;/td&gt;
+      &lt;td&gt;And God saw the light, that it was good: and G...&lt;/td&gt;
+      &lt;td&gt;God saw the light, and saw that it was good. G...&lt;/td&gt;
+      &lt;td&gt;And God seeth the light that it is good, and G...&lt;/td&gt;
+      &lt;td&gt;And God saw the light, that it was good: and G...&lt;/td&gt;
+      &lt;td&gt;NaN&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;4&lt;/th&gt;
+      &lt;td&gt;Genesis 1:5&lt;/td&gt;
+      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
+      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
+      &lt;td&gt;And he called the light Day, and the darkness ...&lt;/td&gt;
+      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
+      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
+      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
+      &lt;td&gt;God called the light |day,| and the darkness h...&lt;/td&gt;
+      &lt;td&gt;and God calleth to the light 'Day,' and to the...&lt;/td&gt;
+      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
+      &lt;td&gt;NaN&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+&lt;/div&gt;
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;df&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;describe&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div&gt;
+&lt;style scoped&gt;
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+&lt;/style&gt;
+&lt;table border="1" class="dataframe"&gt;
+  &lt;thead&gt;
+    &lt;tr style="text-align: right;"&gt;
+      &lt;th&gt;&lt;/th&gt;
+      &lt;th&gt;Verse&lt;/th&gt;
+      &lt;th&gt;King James Bible&lt;/th&gt;
+      &lt;th&gt;American Standard Version&lt;/th&gt;
+      &lt;th&gt;Douay-Rheims Bible&lt;/th&gt;
+      &lt;th&gt;Darby Bible Translation&lt;/th&gt;
+      &lt;th&gt;English Revised Version&lt;/th&gt;
+      &lt;th&gt;Webster Bible Translation&lt;/th&gt;
+      &lt;th&gt;World English Bible&lt;/th&gt;
+      &lt;th&gt;Young's Literal Translation&lt;/th&gt;
+      &lt;th&gt;American King James Version&lt;/th&gt;
+      &lt;th&gt;Weymouth New Testament&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;th&gt;count&lt;/th&gt;
+      &lt;td&gt;31102&lt;/td&gt;
+      &lt;td&gt;31102&lt;/td&gt;
+      &lt;td&gt;31100&lt;/td&gt;
+      &lt;td&gt;31092&lt;/td&gt;
+      &lt;td&gt;31099&lt;/td&gt;
+      &lt;td&gt;31086&lt;/td&gt;
+      &lt;td&gt;31102&lt;/td&gt;
+      &lt;td&gt;31098&lt;/td&gt;
+      &lt;td&gt;31102&lt;/td&gt;
+      &lt;td&gt;31102&lt;/td&gt;
+      &lt;td&gt;7924&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;unique&lt;/th&gt;
+      &lt;td&gt;31102&lt;/td&gt;
+      &lt;td&gt;30840&lt;/td&gt;
+      &lt;td&gt;30716&lt;/td&gt;
+      &lt;td&gt;30886&lt;/td&gt;
+      &lt;td&gt;30722&lt;/td&gt;
+      &lt;td&gt;30687&lt;/td&gt;
+      &lt;td&gt;30855&lt;/td&gt;
+      &lt;td&gt;30776&lt;/td&gt;
+      &lt;td&gt;30861&lt;/td&gt;
+      &lt;td&gt;30825&lt;/td&gt;
+      &lt;td&gt;7913&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;top&lt;/th&gt;
+      &lt;td&gt;Proverbs 26:24&lt;/td&gt;
+      &lt;td&gt;And the LORD spake unto Moses, saying,&lt;/td&gt;
+      &lt;td&gt;And Jehovah spake unto Moses, saying,&lt;/td&gt;
+      &lt;td&gt;And the Lord spoke to Moses, saying:&lt;/td&gt;
+      &lt;td&gt;And Jehovah spoke to Moses, saying,&lt;/td&gt;
+      &lt;td&gt;And the LORD spake unto Moses, saying,&lt;/td&gt;
+      &lt;td&gt;And the LORD spoke to Moses, saying,&lt;/td&gt;
+      &lt;td&gt;Yahweh spoke to Moses, saying,&lt;/td&gt;
+      &lt;td&gt;And Jehovah speaketh unto Moses, saying,&lt;/td&gt;
+      &lt;td&gt;And the LORD spoke to Moses, saying,&lt;/td&gt;
+      &lt;td&gt;May grace and peace be granted to you from God...&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;freq&lt;/th&gt;
+      &lt;td&gt;1&lt;/td&gt;
+      &lt;td&gt;72&lt;/td&gt;
+      &lt;td&gt;72&lt;/td&gt;
+      &lt;td&gt;55&lt;/td&gt;
+      &lt;td&gt;72&lt;/td&gt;
+      &lt;td&gt;72&lt;/td&gt;
+      &lt;td&gt;72&lt;/td&gt;
+      &lt;td&gt;71&lt;/td&gt;
+      &lt;td&gt;73&lt;/td&gt;
+      &lt;td&gt;72&lt;/td&gt;
+      &lt;td&gt;5&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+&lt;/div&gt;
+
+&lt;p&gt;Bibles!&lt;/p&gt;
+&lt;p&gt;Cool. I think the World English Bible looks good for a modern translation. It does have some annoying "|" we might want to scrub out.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;worldbible&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;df&lt;/span&gt;&lt;span class="p"&gt;[[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Verse&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;World English Bible&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;worldbible&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;head&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div&gt;
+&lt;style scoped&gt;
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+&lt;/style&gt;
+&lt;table border="1" class="dataframe"&gt;
+  &lt;thead&gt;
+    &lt;tr style="text-align: right;"&gt;
+      &lt;th&gt;&lt;/th&gt;
+      &lt;th&gt;Verse&lt;/th&gt;
+      &lt;th&gt;World English Bible&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;th&gt;0&lt;/th&gt;
+      &lt;td&gt;Genesis 1:1&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heavens and t...&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;1&lt;/th&gt;
+      &lt;td&gt;Genesis 1:2&lt;/td&gt;
+      &lt;td&gt;Now the earth was formless and empty. Darkness...&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;2&lt;/th&gt;
+      &lt;td&gt;Genesis 1:3&lt;/td&gt;
+      &lt;td&gt;God said, |Let there be light,| and there was ...&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;3&lt;/th&gt;
+      &lt;td&gt;Genesis 1:4&lt;/td&gt;
+      &lt;td&gt;God saw the light, and saw that it was good. G...&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;4&lt;/th&gt;
+      &lt;td&gt;Genesis 1:5&lt;/td&gt;
+      &lt;td&gt;God called the light |day,| and the darkness h...&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+&lt;/div&gt;
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;D2&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nb"&gt;tuple&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;x&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;x&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;worldbible&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;to_records&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;index&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="bp"&gt;False&lt;/span&gt;&lt;span class="p"&gt;)]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;D2&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[(&amp;#39;Genesis 1:1&amp;#39;, &amp;#39;In the beginning God created the heavens and the earth.&amp;#39;),
+ (&amp;#39;Genesis 1:2&amp;#39;,
+  &amp;quot;Now the earth was formless and empty. Darkness was on the surface of the deep. God&amp;#39;s Spirit was hovering over the surface of the waters.&amp;quot;),
+ (&amp;#39;Genesis 1:3&amp;#39;, &amp;#39;God said, |Let there be light,| and there was light.&amp;#39;),
+ (&amp;#39;Genesis 1:4&amp;#39;,
+  &amp;#39;God saw the light, and saw that it was good. God divided the light from the darkness.&amp;#39;),
+ (&amp;#39;Genesis 1:5&amp;#39;,
+  &amp;#39;God called the light |day,| and the darkness he called |night.| There was evening and there was morning, one day.&amp;#39;)]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Just get rid of those annoying |&lt;/span&gt;
+&lt;span class="n"&gt;D2&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[(&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;v&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;t&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;replace&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;|&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;v&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="n"&gt;t&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;D2&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;span class="n"&gt;D2&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[(&amp;#39;Genesis 1:1&amp;#39;, &amp;#39;In the beginning God created the heavens and the earth.&amp;#39;),
+ (&amp;#39;Genesis 1:2&amp;#39;,
+  &amp;quot;Now the earth was formless and empty. Darkness was on the surface of the deep. God&amp;#39;s Spirit was hovering over the surface of the waters.&amp;quot;),
+ (&amp;#39;Genesis 1:3&amp;#39;, &amp;#39;God said, Let there be light, and there was light.&amp;#39;),
+ (&amp;#39;Genesis 1:4&amp;#39;,
+  &amp;#39;God saw the light, and saw that it was good. God divided the light from the darkness.&amp;#39;),
+ (&amp;#39;Genesis 1:5&amp;#39;,
+  &amp;#39;God called the light day, and the darkness he called night. There was evening and there was morning, one day.&amp;#39;)]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;We have {0} Bible passages.&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;D2&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&amp;#39;We have 31102 Bible passages.&amp;#39;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;So now we D1, a set of tweets, and D2, a set of Bible passages. Let's get matching!&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Let&amp;#39;s save our data so we can easily load it in a future session&lt;/span&gt;
+&lt;span class="n"&gt;save_data&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;D1&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;D2&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;pickle&lt;/span&gt;
+&lt;span class="k"&gt;with&lt;/span&gt; &lt;span class="nb"&gt;open&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;processed_data.pkl&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;wb&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;as&lt;/span&gt; &lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="n"&gt;pickle&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;dump&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;save_data&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;</content><category term="preparing_data"></category></entry><entry><title>1. Tweet2Bible - Defining the Problem</title><link href="https://benhoyle.github.io/part-1-tweet2bible-defining-the-problem.html" rel="alternate"></link><published>2018-06-21T11:00:42+01:00</published><updated>2018-06-21T11:00:42+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-21:/part-1-tweet2bible-defining-the-problem.html</id><summary type="html">&lt;p&gt;This post looks at how we define the problem of text similarity.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;1. Tweet2Bible - Defining the Problem&lt;/h1&gt;
+&lt;p&gt;This post looks at how we define the problem of matching Bible passages to tweets.&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1&gt;What is the problem?&lt;/h1&gt;
+&lt;h2&gt;Problem Introduction&lt;/h2&gt;
+&lt;p&gt;I need to research text matching algorithms. We start with two corpora of text data. For a portion of text in the first corpus we want to find the "most similar" portion of text from the second corpus.&lt;/p&gt;
+&lt;p&gt;For fun I decided to use two readily available corpora of short text portions: my Tweet archive and the Bible.&lt;/p&gt;
+&lt;p&gt;The devil (might have to be careful with that phrase) is in the detail of course. A key problem is how we define "most similar".&lt;/p&gt;
+&lt;p&gt;The problem can be seen as one of information retrieval.&lt;/p&gt;
+&lt;h2&gt;Formalised&lt;/h2&gt;
+&lt;p&gt;We have two corpora: D1 and D2. Each corpora contains a set of text portions: ti, where i is the ith text portion. For a given text portion in D1, tg, we want to return a ranked list of text portions from D2, r.&lt;/p&gt;
+&lt;p&gt;We can define a similarity measure, s, that is a normalised metric with values from 0 to 1 that represents similarity of two text portions t1 and t2, where 0 means no similarity and 1 means t1=t2. The ranked list r thus can contain tuples (tj, sj) sorted in descending order based on sj.&lt;/p&gt;
+&lt;p&gt;We want to design a similarity function that matches our natural feeling of relevance. This is the hard part. Relevance will need to be scored subjectively, by comparatively rating different functions using human judgement (e.g. through looking at the actual results).&lt;/p&gt;
+&lt;h2&gt;Assumptions&lt;/h2&gt;
+&lt;p&gt;Below are some assumptions that may apply to the problem.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;We assume that there is some underlying human "relevance", i.e. that a person plucked off the street could say, relatively that one passage is more relevant than another passage.&lt;/li&gt;
+&lt;li&gt;We assume that similarity in some way may be reduced to a single metric between 0 and 1.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2&gt;Similar Problems&lt;/h2&gt;
+&lt;h3&gt;Information Retrieval&lt;/h3&gt;
+&lt;p&gt;The current problem is really an &lt;a href="https://en.wikipedia.org/wiki/Information_retrieval"&gt;information retrieval&lt;/a&gt; problem. We have a source document, which is used to query a corpus and to retrieve a set of "relevant" documents. Many information retrieval systems take a set of keywords and then query an indexed database using the keywords. Google uses the PageRank algorithm and other magic to return relevant search results that are ranked based on links in and out of the web-page.&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1&gt;Why does the problem need to be solved?&lt;/h1&gt;
+&lt;p&gt;There are many areas where it would be useful to match text segments. For example, in my patent work it would be good to select relevant passages of patent publications and Wikipedia based on claim or description text.  &lt;/p&gt;
+&lt;h3&gt;My Motivation&lt;/h3&gt;
+&lt;p&gt;By trying out techniques on a toy problem I can perform some high-level evaluation of what works. Plus it seems fun to match Bible passages to tweets.&lt;/p&gt;
+&lt;h3&gt;Solution Benefits&lt;/h3&gt;
+&lt;p&gt;The solution can form the basis for text similarity matching algorithms in other projects I am working on.  &lt;/p&gt;
+&lt;h3&gt;Solution Use&lt;/h3&gt;
+&lt;p&gt;I will write up my results in a blog post report. There will be a separate blog post for each stage in my investigation and a summary page reporting my results.&lt;/p&gt;
+&lt;p&gt;I could also build a small web application that applies the algorithm to live tweets and other sources of scripture. Who wouldn't want to know which passage of the Qu'ran best matches Donald Trump's latest rant?&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1&gt;How Would I Solve the Problem?&lt;/h1&gt;
+&lt;p&gt;It is worth considering how the problem may be solved manually.&lt;/p&gt;
+&lt;p&gt;I would start by reading a tweet. I would then manually skim through passages of the Bible until I located one that seemed to be related. If I had a lot of free time I might even rank each passage based on relative relevance (e.g. if there are 1000 passages, each passage would get a unique score between 1 and 1000 - I would definitely lose track after about 3).&lt;/p&gt;
+&lt;p&gt;Now having to review each passage of the Bible in turn is quite labour intensive. To help I might try to group similar passages together (e.g. these all mention "crows"). I might find that certain portions were more relevant to certain topics (e.g. Genesis to matters of geology and biology).&lt;/p&gt;
+&lt;p&gt;I might try to summarise each tweet with a set of one or two keywords. I could then use those keywords to do a text search.&lt;/p&gt;</content><category term="defining_the_problem"></category></entry></feed>
