@@ -8,34 +8,16 @@
 
   <title>  4A. Title Generation - Developing the Model - Embeddings | Practical Machine Learning Adventures
 </title>
-  <link rel="canonical" href="https://benhoyle.github.io/part-4a-title-generation-developing-the-model-embeddings.html">
+  <link rel="canonical" href="./part-4a-title-generation-developing-the-model-embeddings.html">
 
 
-  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/bootstrap.min.css">
+  <link rel="stylesheet" href="./theme/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.9/css/all.css" integrity="sha384-5SOiIsAziJl6AWe0HWRKTXlfcSHKmYV4RBF18PPJ173Kzn7jzMyFuTtk8JA7QQG1" crossorigin="anonymous">
-  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/pygments/default.min.css">
-  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/theme.css">
+  <link rel="stylesheet" href="./theme/css/pygments/default.min.css">
+  <link rel="stylesheet" href="./theme/css/theme.css">
 
-  <link rel="alternate" type="application/atom+xml" title="Full Atom Feed"
-        href="https://benhoyle.github.io/feeds/all.atom.xml">
-  <link rel="alternate" type="application/atom+xml" title="Categories Atom Feed"
-        href="https://benhoyle.github.io/feeds/title-generation.atom.xml">  
+  
   <meta name="description" content="This post looks at developing our initial models to include state of the art features to improve results.">
-  <script>
-    (function(i, s, o, g, r, a, m) {
-      i['GoogleAnalyticsObject'] = r;
-      i[r] = i[r] || function() {
-        (i[r].q = i[r].q || []).push(arguments)
-      }, i[r].l = 1 * new Date();
-      a = s.createElement(o);
-      a.async = 1;
-      a.src = g;
-      m = s.getElementsByTagName(o)[0];
-      m.parentNode.insertBefore(a, m)
-    })(window, document, 'script', 'https://www.google-analytics.com/analytics.js', 'ga');
-    ga('create', 'UA-96290248-2', 'auto');
-    ga('send', 'pageview');
-  </script>
 
 
 </head>
@@ -45,7 +27,7 @@
     <div class="container">
 <div class="row">
   <div class="col-sm-12">
-    <h1 class="title"><a href="https://benhoyle.github.io/">Practical Machine Learning Adventures</a></h1>
+    <h1 class="title"><a href="./">Practical Machine Learning Adventures</a></h1>
       <p class="text-muted">A selection of machine learning projects</p>
   </div>
 </div>    </div>
@@ -660,7 +642,7 @@ plt.show()
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/TG_4A_output_44_0.png"></p>
+<p><img alt="png" src="./images/TG_4A_output_44_0.png"></p>
 <p>Now we've trained our model we need some code to test it. Again, this is pretty much as before but with some tweaks to use the word_index dictionaries to look up our control characters.</p>
 <div class="highlight"><pre><span></span><span class="c1"># Set up dictionary to translate indices to words</span>
 <span class="n">y_dictionary</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
@@ -994,7 +976,7 @@ Epoch 1/1
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/TG_4A_output_58_0.png"></p>
+<p><img alt="png" src="./images/TG_4A_output_58_0.png"></p>
 <p>Our training and model loss end up lower and are slowly decreasing. This again suggests that the shared embedding is an improvement. We still look to plateau on our training data after 40-50 iterations (~9 or 10 epochs). From about 40 iterations we start overfitting on our training data.</p>
 <div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="n">preds</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
     <span class="c1"># helper function to sample an index from a probability array</span>
@@ -1089,10 +1071,10 @@ Predicted title is: necessary causing computers space .
 <p>As we saw in this post, we are now reusing much of our previous code. To simplify our notebooks it would now be a good idea to abstract over some of the functionality. To do this we can create Python objects (classes) that have a common interface for both models, and that maximise reuse of common routines where possible.</p>
 <p>To this end we can create four classes:</p>
 <ul>
-<li>An abstract class that defines the common interfaces. This is found in the file <a href="https://benhoyle.github.io/notebooks/title_generation/abstract_model_wrapper.py">here</a>.</li>
-<li>A derived abstract class that defines common sequence-to-sequence model functions. This is found in the file <a href="https://benhoyle.github.io/notebooks/title_generation/base_seq2seq.py">here</a>.</li>
-<li>A concrete class for the Ludwig model with shared embeddings. This differs from the above class through the use of a custom <code>_build_model()</code> function. This is found in the file <a href="https://benhoyle.github.io/notebooks/title_generation/ludwig_model.py">here</a>.</li>
-<li>A concrete class for the Chollet/Brownlee model with shared embeddings. This also differs from the derived abstract class through the use of a custom <code>_build_model()</code> function. This is found in the file <a href="https://benhoyle.github.io/notebooks/title_generation/cb_model.py">here</a>.</li>
+<li>An abstract class that defines the common interfaces. This is found in the file <a href="./notebooks/title_generation/abstract_model_wrapper.py">here</a>.</li>
+<li>A derived abstract class that defines common sequence-to-sequence model functions. This is found in the file <a href="./notebooks/title_generation/base_seq2seq.py">here</a>.</li>
+<li>A concrete class for the Ludwig model with shared embeddings. This differs from the above class through the use of a custom <code>_build_model()</code> function. This is found in the file <a href="./notebooks/title_generation/ludwig_model.py">here</a>.</li>
+<li>A concrete class for the Chollet/Brownlee model with shared embeddings. This also differs from the derived abstract class through the use of a custom <code>_build_model()</code> function. This is found in the file <a href="./notebooks/title_generation/cb_model.py">here</a>.</li>
 </ul>
 <p>We can then concentrate on over-riding the model building part of the class while leaving all other functions the same.</p>
     </div>
@@ -1105,14 +1087,14 @@ Predicted title is: necessary causing computers space .
         </li>
         <li class="list-inline-item">
           <i class="fa fa-folder-open-o"></i>
-          <a href="https://benhoyle.github.io/category/title-generation.html">Title Generation</a>
+          <a href="./category/title-generation.html">Title Generation</a>
         </li>
           <li class="list-inline-item">
             <i class="fa fa-user-o"></i>
-              <a href="https://benhoyle.github.io/author/ben-hoyle.html">Ben Hoyle</a>          </li>
+              <a href="./author/ben-hoyle.html">Ben Hoyle</a>          </li>
           <li class="list-inline-item">
             <i class="fa fa-files-o"></i>
-              <a href="https://benhoyle.github.io/tag/improving_results.html">#improving_results</a>          </li>
+              <a href="./tag/improving_results.html">#improving_results</a>          </li>
       </ul>
     </footer>
   </article>

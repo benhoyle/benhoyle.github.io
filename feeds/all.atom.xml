@@ -1,5 +1,483 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Practical Machine Learning Adventures</title><link href="https://benhoyle.github.io/" rel="alternate"></link><link href="https://benhoyle.github.io/feeds/all.atom.xml" rel="self"></link><id>https://benhoyle.github.io/</id><updated>2018-06-25T10:24:16+01:00</updated><entry><title>3. Tweet2Bible - Comparing Similarity Measures</title><link href="https://benhoyle.github.io/part-3-tweet2bible-comparing-similarity-measures.html" rel="alternate"></link><published>2018-06-25T10:24:16+01:00</published><updated>2018-06-25T10:24:16+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-25:/part-3-tweet2bible-comparing-similarity-measures.html</id><summary type="html">&lt;p&gt;This post looks at some approaches for matching tweets to Bible passages.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;3. Tweet2Bible - Comparing Similarity Measures&lt;/h1&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Practical Machine Learning Adventures</title><link href="https://benhoyle.github.io/" rel="alternate"></link><link href="https://benhoyle.github.io/feeds/all.atom.xml" rel="self"></link><id>https://benhoyle.github.io/</id><updated>2018-06-25T10:31:47+01:00</updated><entry><title>1. Tweet2Bible - Defining the Problem</title><link href="https://benhoyle.github.io/part-1-tweet2bible-defining-the-problem.html" rel="alternate"></link><published>2018-06-25T10:31:47+01:00</published><updated>2018-06-25T10:31:47+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-25:/part-1-tweet2bible-defining-the-problem.html</id><summary type="html">&lt;p&gt;This post looks at how we define the problem of text similarity.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;1. Tweet2Bible - Defining the Problem&lt;/h1&gt;
+&lt;p&gt;This post looks at how we define the problem of matching Bible passages to tweets.&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1&gt;What is the problem?&lt;/h1&gt;
+&lt;h2&gt;Problem Introduction&lt;/h2&gt;
+&lt;p&gt;I need to research text matching algorithms. We start with two corpora of text data. For a portion of text in the first corpus we want to find the "most similar" portion of text from the second corpus.&lt;/p&gt;
+&lt;p&gt;For fun I decided to use two readily available corpora of short text portions: my Tweet archive and the Bible.&lt;/p&gt;
+&lt;p&gt;The devil (might have to be careful with that phrase) is in the detail of course. A key problem is how we define "most similar".&lt;/p&gt;
+&lt;p&gt;The problem can be seen as one of information retrieval.&lt;/p&gt;
+&lt;h2&gt;Formalised&lt;/h2&gt;
+&lt;p&gt;We have two corpora: D1 and D2. Each corpora contains a set of text portions: ti, where i is the ith text portion. For a given text portion in D1, tg, we want to return a ranked list of text portions from D2, r.&lt;/p&gt;
+&lt;p&gt;We can define a similarity measure, s, that is a normalised metric with values from 0 to 1 that represents similarity of two text portions t1 and t2, where 0 means no similarity and 1 means t1=t2. The ranked list r thus can contain tuples (tj, sj) sorted in descending order based on sj.&lt;/p&gt;
+&lt;p&gt;We want to design a similarity function that matches our natural feeling of relevance. This is the hard part. Relevance will need to be scored subjectively, by comparatively rating different functions using human judgement (e.g. through looking at the actual results).&lt;/p&gt;
+&lt;h2&gt;Assumptions&lt;/h2&gt;
+&lt;p&gt;Below are some assumptions that may apply to the problem.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;We assume that there is some underlying human "relevance", i.e. that a person plucked off the street could say, relatively that one passage is more relevant than another passage.&lt;/li&gt;
+&lt;li&gt;We assume that similarity in some way may be reduced to a single metric between 0 and 1.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2&gt;Similar Problems&lt;/h2&gt;
+&lt;h3&gt;Information Retrieval&lt;/h3&gt;
+&lt;p&gt;The current problem is really an &lt;a href="https://en.wikipedia.org/wiki/Information_retrieval"&gt;information retrieval&lt;/a&gt; problem. We have a source document, which is used to query a corpus and to retrieve a set of "relevant" documents. Many information retrieval systems take a set of keywords and then query an indexed database using the keywords. Google uses the PageRank algorithm and other magic to return relevant search results that are ranked based on links in and out of the web-page.&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1&gt;Why does the problem need to be solved?&lt;/h1&gt;
+&lt;p&gt;There are many areas where it would be useful to match text segments. For example, in my patent work it would be good to select relevant passages of patent publications and Wikipedia based on claim or description text.  &lt;/p&gt;
+&lt;h3&gt;My Motivation&lt;/h3&gt;
+&lt;p&gt;By trying out techniques on a toy problem I can perform some high-level evaluation of what works. Plus it seems fun to match Bible passages to tweets.&lt;/p&gt;
+&lt;h3&gt;Solution Benefits&lt;/h3&gt;
+&lt;p&gt;The solution can form the basis for text similarity matching algorithms in other projects I am working on.  &lt;/p&gt;
+&lt;h3&gt;Solution Use&lt;/h3&gt;
+&lt;p&gt;I will write up my results in a blog post report. There will be a separate blog post for each stage in my investigation and a summary page reporting my results.&lt;/p&gt;
+&lt;p&gt;I could also build a small web application that applies the algorithm to live tweets and other sources of scripture. Who wouldn't want to know which passage of the Qu'ran best matches Donald Trump's latest rant?&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1&gt;How Would I Solve the Problem?&lt;/h1&gt;
+&lt;p&gt;It is worth considering how the problem may be solved manually.&lt;/p&gt;
+&lt;p&gt;I would start by reading a tweet. I would then manually skim through passages of the Bible until I located one that seemed to be related. If I had a lot of free time I might even rank each passage based on relative relevance (e.g. if there are 1000 passages, each passage would get a unique score between 1 and 1000 - I would definitely lose track after about 3).&lt;/p&gt;
+&lt;p&gt;Now having to review each passage of the Bible in turn is quite labour intensive. To help I might try to group similar passages together (e.g. these all mention "crows"). I might find that certain portions were more relevant to certain topics (e.g. Genesis to matters of geology and biology).&lt;/p&gt;
+&lt;p&gt;I might try to summarise each tweet with a set of one or two keywords. I could then use those keywords to do a text search.&lt;/p&gt;</content><category term="defining_the_problem"></category></entry><entry><title>2. Tweet2Bible - Exploring the Data</title><link href="https://benhoyle.github.io/part-2-tweet2bible-exploring-the-data.html" rel="alternate"></link><published>2018-06-25T10:31:47+01:00</published><updated>2018-06-25T10:31:47+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-25:/part-2-tweet2bible-exploring-the-data.html</id><summary type="html">&lt;p&gt;This post explores the data for our Tweet2Bible experiments.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;2. Tweet2Bible - Exploring the Data&lt;/h1&gt;
+&lt;p&gt;In the previous post we looked at the problem for our current project: how to match a tweet to passages of the Bible.&lt;/p&gt;
+&lt;p&gt;In this post we will look at the steps required to prepare some data for our algorithms. We will also look at the nature of the data, which may give us some insights as to how we transform our data in later stages.&lt;/p&gt;
+&lt;h2&gt;Getting the Data&lt;/h2&gt;
+&lt;h3&gt;Tweets&lt;/h3&gt;
+&lt;p&gt;Twitter offers an option in the settings to download your tweet archive. Log in to the web version, goto account settings and click the "Download Archive" button. You will then be sent an email with a link to the data.&lt;/p&gt;
+&lt;p&gt;Fair play to Twitter, the archive is quite cool. You get a CSV file with your tweets and some other useful data, plus a JSON archive (which can be viewed via a local HTML file). To keep things simple we'll just use the CSV file for now.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;csv&lt;/span&gt;
+&lt;span class="k"&gt;with&lt;/span&gt; &lt;span class="nb"&gt;open&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;tweets.csv&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;newline&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;encoding&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;utf-8&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;as&lt;/span&gt; &lt;span class="n"&gt;csvfile&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="n"&gt;casereader&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;csv&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;reader&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;csvfile&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;delimiter&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;,&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;data&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;row&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;row&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;casereader&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[&amp;#39;tweet_id&amp;#39;,
+ &amp;#39;in_reply_to_status_id&amp;#39;,
+ &amp;#39;in_reply_to_user_id&amp;#39;,
+ &amp;#39;timestamp&amp;#39;,
+ &amp;#39;source&amp;#39;,
+ &amp;#39;text&amp;#39;,
+ &amp;#39;retweeted_status_id&amp;#39;,
+ &amp;#39;retweeted_status_user_id&amp;#39;,
+ &amp;#39;retweeted_status_timestamp&amp;#39;,
+ &amp;#39;expanded_urls&amp;#39;]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[[&amp;#39;1009719610910957568&amp;#39;,
+  &amp;#39;1009527946036613121&amp;#39;,
+  &amp;#39;20524211&amp;#39;,
+  &amp;#39;2018-06-21 08:48:09 +0000&amp;#39;,
+  &amp;#39;&lt;span class="nt"&gt;&amp;lt;a&lt;/span&gt; &lt;span class="na"&gt;href=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;http://twitter.com&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;rel=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;nofollow&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;Twitter Web Client&lt;span class="nt"&gt;&amp;lt;/a&amp;gt;&lt;/span&gt;&amp;#39;,
+  &amp;quot;@patently It&amp;#39;s okay - whatever photo storage app you use is already plugged into the system.&amp;quot;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;&amp;#39;],
+ [&amp;#39;1009409717205168128&amp;#39;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;2018-06-20 12:16:45 +0000&amp;#39;,
+  &amp;#39;&lt;span class="nt"&gt;&amp;lt;a&lt;/span&gt; &lt;span class="na"&gt;href=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;http://twitter.com/download/iphone&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;rel=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;nofollow&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;Twitter for iPhone&lt;span class="nt"&gt;&amp;lt;/a&amp;gt;&lt;/span&gt;&amp;#39;,
+  &amp;#39;I love all the people the computer said “looked a bit like Rick Astley” including, I think, JFK, Jesus and Norman Bates. https://t.co/HHI0HFU0Cy&amp;#39;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;&amp;#39;,
+  &amp;#39;https://twitter.com/quasimondo/status/1009369380042485760&amp;#39;]]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;For now we will just extract the text to get a list of strings.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;D1&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;d&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;d&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;:]]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;D1&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[&amp;quot;@patently It&amp;#39;s okay - whatever photo storage app you use is already plugged into the system.&amp;quot;,
+ &amp;#39;I love all the people the computer said “looked a bit like Rick Astley” including, I think, JFK, Jesus and Norman Bates. https://t.co/HHI0HFU0Cy&amp;#39;,
+ &amp;quot;“These were ancient engineers with a genius that allowed people to walk multi-tonne statues and roll multi-tonne hats - which teaches us about the society&amp;#39;s investment in honouring their ancestors. It&amp;#39;s quite a remarkable accomplishment” https://t.co/DzscvwJ0do https://t.co/Q7B8ioRS0h&amp;quot;,
+ &amp;#39;KPMG audit work unacceptable - watchdog https://t.co/9np6lWkHTG [Average remuneration per partner in 2016 = £582k]&amp;#39;,
+ &amp;#39;Ooo Le Sud by Nino Ferrer - well done @SpotifyUK algorithms https://t.co/ANxMxVWiJV [Question is do I prefer the original French or Nino’s English version? Also check out the brilliantly proggy Métronomie]&amp;#39;]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;We have {0} tweets.&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;D1&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&amp;#39;We have 9806 tweets.&amp;#39;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Looking at some of our tweets, we need to unescape the text such that "&amp;amp;" is converted to "&amp;amp;". This can be performed using the html library.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;html&lt;/span&gt;
+
+&lt;span class="n"&gt;D1&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;html&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;unescape&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;t&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;t&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;D1&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h3&gt;Bible&lt;/h3&gt;
+&lt;p&gt;The Bible is actually quite a good source of text for natural language processing projects. &lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;it is free; &lt;/li&gt;
+&lt;li&gt;people want to make it easy to distribute; &lt;/li&gt;
+&lt;li&gt;it is naturally broken down into short passages; and&lt;/li&gt;
+&lt;li&gt;it contains a variety of styles (I like to thing of it as a 2000 year old Wikipedia for middle-eastern farmers).&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;For this project I went to &lt;a href="http://biblehub.net/database/"&gt;BibleHub.net&lt;/a&gt; which offers an Excel spreadsheet featuring 10 different versions of the Bible, where each row is a different verse. You get a free username and password in exchange for registration using an email address.&lt;/p&gt;
+&lt;p&gt;We can use Pandas to convert the spreadsheet into useful Python data. We then need to pick a Bible to use. I think the most modern translation will probably be best. &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;pandas&lt;/span&gt; &lt;span class="kn"&gt;as&lt;/span&gt; &lt;span class="nn"&gt;pd&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Pandas needs the xlrd package to read excel files&lt;/span&gt;
+&lt;span class="err"&gt;!&lt;/span&gt;&lt;span class="n"&gt;pip3&lt;/span&gt; &lt;span class="n"&gt;install&lt;/span&gt; &lt;span class="n"&gt;xlrd&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;Collecting xlrd
+[?25l  Downloading https://files.pythonhosted.org/packages/07/e6/e95c4eec6221bfd8528bcc4ea252a850bffcc4be88ebc367e23a1a84b0bb/xlrd-1.1.0-py2.py3-none-any.whl (108kB)
+[K    100% |################################| 112kB 1.1MB/s ta 0:00:01   65% |#####################           | 71kB 2.0MB/s eta 0:00:01
+[?25hInstalling collected packages: xlrd
+Successfully installed xlrd-1.1.0
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="nb"&gt;file&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;bibles.xls&amp;#39;&lt;/span&gt;
+&lt;span class="n"&gt;df&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;pd&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;read_excel&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;file&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;df&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;head&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div&gt;
+&lt;style scoped&gt;
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+&lt;/style&gt;
+&lt;table border="1" class="dataframe"&gt;
+  &lt;thead&gt;
+    &lt;tr style="text-align: right;"&gt;
+      &lt;th&gt;&lt;/th&gt;
+      &lt;th&gt;Verse&lt;/th&gt;
+      &lt;th&gt;King James Bible&lt;/th&gt;
+      &lt;th&gt;American Standard Version&lt;/th&gt;
+      &lt;th&gt;Douay-Rheims Bible&lt;/th&gt;
+      &lt;th&gt;Darby Bible Translation&lt;/th&gt;
+      &lt;th&gt;English Revised Version&lt;/th&gt;
+      &lt;th&gt;Webster Bible Translation&lt;/th&gt;
+      &lt;th&gt;World English Bible&lt;/th&gt;
+      &lt;th&gt;Young's Literal Translation&lt;/th&gt;
+      &lt;th&gt;American King James Version&lt;/th&gt;
+      &lt;th&gt;Weymouth New Testament&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;th&gt;0&lt;/th&gt;
+      &lt;td&gt;Genesis 1:1&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heaven and th...&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heavens and t...&lt;/td&gt;
+      &lt;td&gt;In the beginning God created heaven, and earth.&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heavens and t...&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heaven and th...&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heaven and th...&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heavens and t...&lt;/td&gt;
+      &lt;td&gt;In the beginning of God's preparing the heaven...&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heaven and th...&lt;/td&gt;
+      &lt;td&gt;NaN&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;1&lt;/th&gt;
+      &lt;td&gt;Genesis 1:2&lt;/td&gt;
+      &lt;td&gt;And the earth was without form, and void; and ...&lt;/td&gt;
+      &lt;td&gt;And the earth was waste and void; and darkness...&lt;/td&gt;
+      &lt;td&gt;And the earth was void and empty, and darkness...&lt;/td&gt;
+      &lt;td&gt;And the earth was waste and empty, and darknes...&lt;/td&gt;
+      &lt;td&gt;And the earth was waste and void; and darkness...&lt;/td&gt;
+      &lt;td&gt;And the earth was without form, and void; and ...&lt;/td&gt;
+      &lt;td&gt;Now the earth was formless and empty. Darkness...&lt;/td&gt;
+      &lt;td&gt;the earth hath existed waste and void, and dar...&lt;/td&gt;
+      &lt;td&gt;And the earth was without form, and void; and ...&lt;/td&gt;
+      &lt;td&gt;NaN&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;2&lt;/th&gt;
+      &lt;td&gt;Genesis 1:3&lt;/td&gt;
+      &lt;td&gt;And God said, Let there be light: and there wa...&lt;/td&gt;
+      &lt;td&gt;And God said, Let there be light: and there wa...&lt;/td&gt;
+      &lt;td&gt;And God said: Be light made. And light was made.&lt;/td&gt;
+      &lt;td&gt;And God said, Let there be light. And there wa...&lt;/td&gt;
+      &lt;td&gt;And God said, Let there be light: and there wa...&lt;/td&gt;
+      &lt;td&gt;And God said, Let there be light: and there wa...&lt;/td&gt;
+      &lt;td&gt;God said, |Let there be light,| and there was ...&lt;/td&gt;
+      &lt;td&gt;and God saith, 'Let light be;' and light is.&lt;/td&gt;
+      &lt;td&gt;And God said, Let there be light: and there wa...&lt;/td&gt;
+      &lt;td&gt;NaN&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;3&lt;/th&gt;
+      &lt;td&gt;Genesis 1:4&lt;/td&gt;
+      &lt;td&gt;And God saw the light, that &amp;lt;i&amp;gt;it was&amp;lt;/i&amp;gt; good...&lt;/td&gt;
+      &lt;td&gt;And God saw the light, that it was good: and G...&lt;/td&gt;
+      &lt;td&gt;And God saw the light that it was good; and he...&lt;/td&gt;
+      &lt;td&gt;And God saw the light that it was good; and Go...&lt;/td&gt;
+      &lt;td&gt;And God saw the light, that it was good: and G...&lt;/td&gt;
+      &lt;td&gt;And God saw the light, that it was good: and G...&lt;/td&gt;
+      &lt;td&gt;God saw the light, and saw that it was good. G...&lt;/td&gt;
+      &lt;td&gt;And God seeth the light that it is good, and G...&lt;/td&gt;
+      &lt;td&gt;And God saw the light, that it was good: and G...&lt;/td&gt;
+      &lt;td&gt;NaN&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;4&lt;/th&gt;
+      &lt;td&gt;Genesis 1:5&lt;/td&gt;
+      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
+      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
+      &lt;td&gt;And he called the light Day, and the darkness ...&lt;/td&gt;
+      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
+      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
+      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
+      &lt;td&gt;God called the light |day,| and the darkness h...&lt;/td&gt;
+      &lt;td&gt;and God calleth to the light 'Day,' and to the...&lt;/td&gt;
+      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
+      &lt;td&gt;NaN&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+&lt;/div&gt;
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;df&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;describe&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div&gt;
+&lt;style scoped&gt;
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+&lt;/style&gt;
+&lt;table border="1" class="dataframe"&gt;
+  &lt;thead&gt;
+    &lt;tr style="text-align: right;"&gt;
+      &lt;th&gt;&lt;/th&gt;
+      &lt;th&gt;Verse&lt;/th&gt;
+      &lt;th&gt;King James Bible&lt;/th&gt;
+      &lt;th&gt;American Standard Version&lt;/th&gt;
+      &lt;th&gt;Douay-Rheims Bible&lt;/th&gt;
+      &lt;th&gt;Darby Bible Translation&lt;/th&gt;
+      &lt;th&gt;English Revised Version&lt;/th&gt;
+      &lt;th&gt;Webster Bible Translation&lt;/th&gt;
+      &lt;th&gt;World English Bible&lt;/th&gt;
+      &lt;th&gt;Young's Literal Translation&lt;/th&gt;
+      &lt;th&gt;American King James Version&lt;/th&gt;
+      &lt;th&gt;Weymouth New Testament&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;th&gt;count&lt;/th&gt;
+      &lt;td&gt;31102&lt;/td&gt;
+      &lt;td&gt;31102&lt;/td&gt;
+      &lt;td&gt;31100&lt;/td&gt;
+      &lt;td&gt;31092&lt;/td&gt;
+      &lt;td&gt;31099&lt;/td&gt;
+      &lt;td&gt;31086&lt;/td&gt;
+      &lt;td&gt;31102&lt;/td&gt;
+      &lt;td&gt;31098&lt;/td&gt;
+      &lt;td&gt;31102&lt;/td&gt;
+      &lt;td&gt;31102&lt;/td&gt;
+      &lt;td&gt;7924&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;unique&lt;/th&gt;
+      &lt;td&gt;31102&lt;/td&gt;
+      &lt;td&gt;30840&lt;/td&gt;
+      &lt;td&gt;30716&lt;/td&gt;
+      &lt;td&gt;30886&lt;/td&gt;
+      &lt;td&gt;30722&lt;/td&gt;
+      &lt;td&gt;30687&lt;/td&gt;
+      &lt;td&gt;30855&lt;/td&gt;
+      &lt;td&gt;30776&lt;/td&gt;
+      &lt;td&gt;30861&lt;/td&gt;
+      &lt;td&gt;30825&lt;/td&gt;
+      &lt;td&gt;7913&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;top&lt;/th&gt;
+      &lt;td&gt;Proverbs 26:24&lt;/td&gt;
+      &lt;td&gt;And the LORD spake unto Moses, saying,&lt;/td&gt;
+      &lt;td&gt;And Jehovah spake unto Moses, saying,&lt;/td&gt;
+      &lt;td&gt;And the Lord spoke to Moses, saying:&lt;/td&gt;
+      &lt;td&gt;And Jehovah spoke to Moses, saying,&lt;/td&gt;
+      &lt;td&gt;And the LORD spake unto Moses, saying,&lt;/td&gt;
+      &lt;td&gt;And the LORD spoke to Moses, saying,&lt;/td&gt;
+      &lt;td&gt;Yahweh spoke to Moses, saying,&lt;/td&gt;
+      &lt;td&gt;And Jehovah speaketh unto Moses, saying,&lt;/td&gt;
+      &lt;td&gt;And the LORD spoke to Moses, saying,&lt;/td&gt;
+      &lt;td&gt;May grace and peace be granted to you from God...&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;freq&lt;/th&gt;
+      &lt;td&gt;1&lt;/td&gt;
+      &lt;td&gt;72&lt;/td&gt;
+      &lt;td&gt;72&lt;/td&gt;
+      &lt;td&gt;55&lt;/td&gt;
+      &lt;td&gt;72&lt;/td&gt;
+      &lt;td&gt;72&lt;/td&gt;
+      &lt;td&gt;72&lt;/td&gt;
+      &lt;td&gt;71&lt;/td&gt;
+      &lt;td&gt;73&lt;/td&gt;
+      &lt;td&gt;72&lt;/td&gt;
+      &lt;td&gt;5&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+&lt;/div&gt;
+
+&lt;p&gt;Bibles!&lt;/p&gt;
+&lt;p&gt;Cool. I think the World English Bible looks good for a modern translation. It does have some annoying "|" we might want to scrub out.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;worldbible&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;df&lt;/span&gt;&lt;span class="p"&gt;[[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Verse&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;World English Bible&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;worldbible&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;head&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div&gt;
+&lt;style scoped&gt;
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+&lt;/style&gt;
+&lt;table border="1" class="dataframe"&gt;
+  &lt;thead&gt;
+    &lt;tr style="text-align: right;"&gt;
+      &lt;th&gt;&lt;/th&gt;
+      &lt;th&gt;Verse&lt;/th&gt;
+      &lt;th&gt;World English Bible&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;th&gt;0&lt;/th&gt;
+      &lt;td&gt;Genesis 1:1&lt;/td&gt;
+      &lt;td&gt;In the beginning God created the heavens and t...&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;1&lt;/th&gt;
+      &lt;td&gt;Genesis 1:2&lt;/td&gt;
+      &lt;td&gt;Now the earth was formless and empty. Darkness...&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;2&lt;/th&gt;
+      &lt;td&gt;Genesis 1:3&lt;/td&gt;
+      &lt;td&gt;God said, |Let there be light,| and there was ...&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;3&lt;/th&gt;
+      &lt;td&gt;Genesis 1:4&lt;/td&gt;
+      &lt;td&gt;God saw the light, and saw that it was good. G...&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;th&gt;4&lt;/th&gt;
+      &lt;td&gt;Genesis 1:5&lt;/td&gt;
+      &lt;td&gt;God called the light |day,| and the darkness h...&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+&lt;/div&gt;
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;D2&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nb"&gt;tuple&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;x&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;x&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;worldbible&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;to_records&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;index&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="bp"&gt;False&lt;/span&gt;&lt;span class="p"&gt;)]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;D2&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[(&amp;#39;Genesis 1:1&amp;#39;, &amp;#39;In the beginning God created the heavens and the earth.&amp;#39;),
+ (&amp;#39;Genesis 1:2&amp;#39;,
+  &amp;quot;Now the earth was formless and empty. Darkness was on the surface of the deep. God&amp;#39;s Spirit was hovering over the surface of the waters.&amp;quot;),
+ (&amp;#39;Genesis 1:3&amp;#39;, &amp;#39;God said, |Let there be light,| and there was light.&amp;#39;),
+ (&amp;#39;Genesis 1:4&amp;#39;,
+  &amp;#39;God saw the light, and saw that it was good. God divided the light from the darkness.&amp;#39;),
+ (&amp;#39;Genesis 1:5&amp;#39;,
+  &amp;#39;God called the light |day,| and the darkness he called |night.| There was evening and there was morning, one day.&amp;#39;)]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Just get rid of those annoying |&lt;/span&gt;
+&lt;span class="n"&gt;D2&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[(&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;v&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;t&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;replace&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;|&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;v&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="n"&gt;t&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;D2&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;span class="n"&gt;D2&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[(&amp;#39;Genesis 1:1&amp;#39;, &amp;#39;In the beginning God created the heavens and the earth.&amp;#39;),
+ (&amp;#39;Genesis 1:2&amp;#39;,
+  &amp;quot;Now the earth was formless and empty. Darkness was on the surface of the deep. God&amp;#39;s Spirit was hovering over the surface of the waters.&amp;quot;),
+ (&amp;#39;Genesis 1:3&amp;#39;, &amp;#39;God said, Let there be light, and there was light.&amp;#39;),
+ (&amp;#39;Genesis 1:4&amp;#39;,
+  &amp;#39;God saw the light, and saw that it was good. God divided the light from the darkness.&amp;#39;),
+ (&amp;#39;Genesis 1:5&amp;#39;,
+  &amp;#39;God called the light day, and the darkness he called night. There was evening and there was morning, one day.&amp;#39;)]
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;We have {0} Bible passages.&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;D2&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&amp;#39;We have 31102 Bible passages.&amp;#39;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;So now we D1, a set of tweets, and D2, a set of Bible passages. Let's get matching!&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Let&amp;#39;s save our data so we can easily load it in a future session&lt;/span&gt;
+&lt;span class="n"&gt;save_data&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;D1&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;D2&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;pickle&lt;/span&gt;
+&lt;span class="k"&gt;with&lt;/span&gt; &lt;span class="nb"&gt;open&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;processed_data.pkl&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;wb&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;as&lt;/span&gt; &lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="n"&gt;pickle&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;dump&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;save_data&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;</content><category term="preparing_data"></category></entry><entry><title>3. Tweet2Bible - Comparing Similarity Measures</title><link href="https://benhoyle.github.io/part-3-tweet2bible-comparing-similarity-measures.html" rel="alternate"></link><published>2018-06-25T10:31:47+01:00</published><updated>2018-06-25T10:31:47+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-25:/part-3-tweet2bible-comparing-similarity-measures.html</id><summary type="html">&lt;p&gt;This post looks at some approaches for matching tweets to Bible passages.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;3. Tweet2Bible - Comparing Similarity Measures&lt;/h1&gt;
 &lt;p&gt;Now we have our data we can look at some matching.&lt;/p&gt;
 &lt;p&gt;To start we will look at a number of off-the-shelf similarity functions. We will then compare these subjectively and see what gets us the best matches.&lt;/p&gt;
 &lt;h2&gt;Similarity Functions&lt;/h2&gt;
@@ -1024,485 +1502,7 @@ Successfully installed xlwt-1.3.0
 
 
 &lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;row_df&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;to_excel&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;comparison.xls&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;</content><category term="initial_model"></category></entry><entry><title>2. Tweet2Bible - Exploring the Data</title><link href="https://benhoyle.github.io/part-2-tweet2bible-exploring-the-data.html" rel="alternate"></link><published>2018-06-25T09:33:59+01:00</published><updated>2018-06-25T09:33:59+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-25:/part-2-tweet2bible-exploring-the-data.html</id><summary type="html">&lt;p&gt;This post explores the data for our Tweet2Bible experiments.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;2. Tweet2Bible - Exploring the Data&lt;/h1&gt;
-&lt;p&gt;In the previous post we looked at the problem for our current project: how to match a tweet to passages of the Bible.&lt;/p&gt;
-&lt;p&gt;In this post we will look at the steps required to prepare some data for our algorithms. We will also look at the nature of the data, which may give us some insights as to how we transform our data in later stages.&lt;/p&gt;
-&lt;h2&gt;Getting the Data&lt;/h2&gt;
-&lt;h3&gt;Tweets&lt;/h3&gt;
-&lt;p&gt;Twitter offers an option in the settings to download your tweet archive. Log in to the web version, goto account settings and click the "Download Archive" button. You will then be sent an email with a link to the data.&lt;/p&gt;
-&lt;p&gt;Fair play to Twitter, the archive is quite cool. You get a CSV file with your tweets and some other useful data, plus a JSON archive (which can be viewed via a local HTML file). To keep things simple we'll just use the CSV file for now.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;csv&lt;/span&gt;
-&lt;span class="k"&gt;with&lt;/span&gt; &lt;span class="nb"&gt;open&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;tweets.csv&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;newline&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;encoding&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;utf-8&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;as&lt;/span&gt; &lt;span class="n"&gt;csvfile&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
-    &lt;span class="n"&gt;casereader&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;csv&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;reader&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;csvfile&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;delimiter&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;,&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="n"&gt;data&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;row&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;row&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;casereader&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[&amp;#39;tweet_id&amp;#39;,
- &amp;#39;in_reply_to_status_id&amp;#39;,
- &amp;#39;in_reply_to_user_id&amp;#39;,
- &amp;#39;timestamp&amp;#39;,
- &amp;#39;source&amp;#39;,
- &amp;#39;text&amp;#39;,
- &amp;#39;retweeted_status_id&amp;#39;,
- &amp;#39;retweeted_status_user_id&amp;#39;,
- &amp;#39;retweeted_status_timestamp&amp;#39;,
- &amp;#39;expanded_urls&amp;#39;]
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[[&amp;#39;1009719610910957568&amp;#39;,
-  &amp;#39;1009527946036613121&amp;#39;,
-  &amp;#39;20524211&amp;#39;,
-  &amp;#39;2018-06-21 08:48:09 +0000&amp;#39;,
-  &amp;#39;&lt;span class="nt"&gt;&amp;lt;a&lt;/span&gt; &lt;span class="na"&gt;href=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;http://twitter.com&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;rel=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;nofollow&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;Twitter Web Client&lt;span class="nt"&gt;&amp;lt;/a&amp;gt;&lt;/span&gt;&amp;#39;,
-  &amp;quot;@patently It&amp;#39;s okay - whatever photo storage app you use is already plugged into the system.&amp;quot;,
-  &amp;#39;&amp;#39;,
-  &amp;#39;&amp;#39;,
-  &amp;#39;&amp;#39;,
-  &amp;#39;&amp;#39;],
- [&amp;#39;1009409717205168128&amp;#39;,
-  &amp;#39;&amp;#39;,
-  &amp;#39;&amp;#39;,
-  &amp;#39;2018-06-20 12:16:45 +0000&amp;#39;,
-  &amp;#39;&lt;span class="nt"&gt;&amp;lt;a&lt;/span&gt; &lt;span class="na"&gt;href=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;http://twitter.com/download/iphone&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;rel=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;nofollow&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;Twitter for iPhone&lt;span class="nt"&gt;&amp;lt;/a&amp;gt;&lt;/span&gt;&amp;#39;,
-  &amp;#39;I love all the people the computer said “looked a bit like Rick Astley” including, I think, JFK, Jesus and Norman Bates. https://t.co/HHI0HFU0Cy&amp;#39;,
-  &amp;#39;&amp;#39;,
-  &amp;#39;&amp;#39;,
-  &amp;#39;&amp;#39;,
-  &amp;#39;https://twitter.com/quasimondo/status/1009369380042485760&amp;#39;]]
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;p&gt;For now we will just extract the text to get a list of strings.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;D1&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;d&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;d&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;:]]&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;D1&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[&amp;quot;@patently It&amp;#39;s okay - whatever photo storage app you use is already plugged into the system.&amp;quot;,
- &amp;#39;I love all the people the computer said “looked a bit like Rick Astley” including, I think, JFK, Jesus and Norman Bates. https://t.co/HHI0HFU0Cy&amp;#39;,
- &amp;quot;“These were ancient engineers with a genius that allowed people to walk multi-tonne statues and roll multi-tonne hats - which teaches us about the society&amp;#39;s investment in honouring their ancestors. It&amp;#39;s quite a remarkable accomplishment” https://t.co/DzscvwJ0do https://t.co/Q7B8ioRS0h&amp;quot;,
- &amp;#39;KPMG audit work unacceptable - watchdog https://t.co/9np6lWkHTG [Average remuneration per partner in 2016 = £582k]&amp;#39;,
- &amp;#39;Ooo Le Sud by Nino Ferrer - well done @SpotifyUK algorithms https://t.co/ANxMxVWiJV [Question is do I prefer the original French or Nino’s English version? Also check out the brilliantly proggy Métronomie]&amp;#39;]
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;We have {0} tweets.&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;D1&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&amp;#39;We have 9806 tweets.&amp;#39;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;p&gt;Looking at some of our tweets, we need to unescape the text such that "&amp;amp;" is converted to "&amp;amp;". This can be performed using the html library.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;html&lt;/span&gt;
-
-&lt;span class="n"&gt;D1&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;html&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;unescape&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;t&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;t&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;D1&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;h3&gt;Bible&lt;/h3&gt;
-&lt;p&gt;The Bible is actually quite a good source of text for natural language processing projects. &lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;it is free; &lt;/li&gt;
-&lt;li&gt;people want to make it easy to distribute; &lt;/li&gt;
-&lt;li&gt;it is naturally broken down into short passages; and&lt;/li&gt;
-&lt;li&gt;it contains a variety of styles (I like to thing of it as a 2000 year old Wikipedia for middle-eastern farmers).&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;For this project I went to &lt;a href="http://biblehub.net/database/"&gt;BibleHub.net&lt;/a&gt; which offers an Excel spreadsheet featuring 10 different versions of the Bible, where each row is a different verse. You get a free username and password in exchange for registration using an email address.&lt;/p&gt;
-&lt;p&gt;We can use Pandas to convert the spreadsheet into useful Python data. We then need to pick a Bible to use. I think the most modern translation will probably be best. &lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;pandas&lt;/span&gt; &lt;span class="kn"&gt;as&lt;/span&gt; &lt;span class="nn"&gt;pd&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Pandas needs the xlrd package to read excel files&lt;/span&gt;
-&lt;span class="err"&gt;!&lt;/span&gt;&lt;span class="n"&gt;pip3&lt;/span&gt; &lt;span class="n"&gt;install&lt;/span&gt; &lt;span class="n"&gt;xlrd&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;Collecting xlrd
-[?25l  Downloading https://files.pythonhosted.org/packages/07/e6/e95c4eec6221bfd8528bcc4ea252a850bffcc4be88ebc367e23a1a84b0bb/xlrd-1.1.0-py2.py3-none-any.whl (108kB)
-[K    100% |################################| 112kB 1.1MB/s ta 0:00:01   65% |#####################           | 71kB 2.0MB/s eta 0:00:01
-[?25hInstalling collected packages: xlrd
-Successfully installed xlrd-1.1.0
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="nb"&gt;file&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;bibles.xls&amp;#39;&lt;/span&gt;
-&lt;span class="n"&gt;df&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;pd&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;read_excel&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;file&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;df&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;head&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div&gt;
-&lt;style scoped&gt;
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-&lt;/style&gt;
-&lt;table border="1" class="dataframe"&gt;
-  &lt;thead&gt;
-    &lt;tr style="text-align: right;"&gt;
-      &lt;th&gt;&lt;/th&gt;
-      &lt;th&gt;Verse&lt;/th&gt;
-      &lt;th&gt;King James Bible&lt;/th&gt;
-      &lt;th&gt;American Standard Version&lt;/th&gt;
-      &lt;th&gt;Douay-Rheims Bible&lt;/th&gt;
-      &lt;th&gt;Darby Bible Translation&lt;/th&gt;
-      &lt;th&gt;English Revised Version&lt;/th&gt;
-      &lt;th&gt;Webster Bible Translation&lt;/th&gt;
-      &lt;th&gt;World English Bible&lt;/th&gt;
-      &lt;th&gt;Young's Literal Translation&lt;/th&gt;
-      &lt;th&gt;American King James Version&lt;/th&gt;
-      &lt;th&gt;Weymouth New Testament&lt;/th&gt;
-    &lt;/tr&gt;
-  &lt;/thead&gt;
-  &lt;tbody&gt;
-    &lt;tr&gt;
-      &lt;th&gt;0&lt;/th&gt;
-      &lt;td&gt;Genesis 1:1&lt;/td&gt;
-      &lt;td&gt;In the beginning God created the heaven and th...&lt;/td&gt;
-      &lt;td&gt;In the beginning God created the heavens and t...&lt;/td&gt;
-      &lt;td&gt;In the beginning God created heaven, and earth.&lt;/td&gt;
-      &lt;td&gt;In the beginning God created the heavens and t...&lt;/td&gt;
-      &lt;td&gt;In the beginning God created the heaven and th...&lt;/td&gt;
-      &lt;td&gt;In the beginning God created the heaven and th...&lt;/td&gt;
-      &lt;td&gt;In the beginning God created the heavens and t...&lt;/td&gt;
-      &lt;td&gt;In the beginning of God's preparing the heaven...&lt;/td&gt;
-      &lt;td&gt;In the beginning God created the heaven and th...&lt;/td&gt;
-      &lt;td&gt;NaN&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;th&gt;1&lt;/th&gt;
-      &lt;td&gt;Genesis 1:2&lt;/td&gt;
-      &lt;td&gt;And the earth was without form, and void; and ...&lt;/td&gt;
-      &lt;td&gt;And the earth was waste and void; and darkness...&lt;/td&gt;
-      &lt;td&gt;And the earth was void and empty, and darkness...&lt;/td&gt;
-      &lt;td&gt;And the earth was waste and empty, and darknes...&lt;/td&gt;
-      &lt;td&gt;And the earth was waste and void; and darkness...&lt;/td&gt;
-      &lt;td&gt;And the earth was without form, and void; and ...&lt;/td&gt;
-      &lt;td&gt;Now the earth was formless and empty. Darkness...&lt;/td&gt;
-      &lt;td&gt;the earth hath existed waste and void, and dar...&lt;/td&gt;
-      &lt;td&gt;And the earth was without form, and void; and ...&lt;/td&gt;
-      &lt;td&gt;NaN&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;th&gt;2&lt;/th&gt;
-      &lt;td&gt;Genesis 1:3&lt;/td&gt;
-      &lt;td&gt;And God said, Let there be light: and there wa...&lt;/td&gt;
-      &lt;td&gt;And God said, Let there be light: and there wa...&lt;/td&gt;
-      &lt;td&gt;And God said: Be light made. And light was made.&lt;/td&gt;
-      &lt;td&gt;And God said, Let there be light. And there wa...&lt;/td&gt;
-      &lt;td&gt;And God said, Let there be light: and there wa...&lt;/td&gt;
-      &lt;td&gt;And God said, Let there be light: and there wa...&lt;/td&gt;
-      &lt;td&gt;God said, |Let there be light,| and there was ...&lt;/td&gt;
-      &lt;td&gt;and God saith, 'Let light be;' and light is.&lt;/td&gt;
-      &lt;td&gt;And God said, Let there be light: and there wa...&lt;/td&gt;
-      &lt;td&gt;NaN&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;th&gt;3&lt;/th&gt;
-      &lt;td&gt;Genesis 1:4&lt;/td&gt;
-      &lt;td&gt;And God saw the light, that &amp;lt;i&amp;gt;it was&amp;lt;/i&amp;gt; good...&lt;/td&gt;
-      &lt;td&gt;And God saw the light, that it was good: and G...&lt;/td&gt;
-      &lt;td&gt;And God saw the light that it was good; and he...&lt;/td&gt;
-      &lt;td&gt;And God saw the light that it was good; and Go...&lt;/td&gt;
-      &lt;td&gt;And God saw the light, that it was good: and G...&lt;/td&gt;
-      &lt;td&gt;And God saw the light, that it was good: and G...&lt;/td&gt;
-      &lt;td&gt;God saw the light, and saw that it was good. G...&lt;/td&gt;
-      &lt;td&gt;And God seeth the light that it is good, and G...&lt;/td&gt;
-      &lt;td&gt;And God saw the light, that it was good: and G...&lt;/td&gt;
-      &lt;td&gt;NaN&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;th&gt;4&lt;/th&gt;
-      &lt;td&gt;Genesis 1:5&lt;/td&gt;
-      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
-      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
-      &lt;td&gt;And he called the light Day, and the darkness ...&lt;/td&gt;
-      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
-      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
-      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
-      &lt;td&gt;God called the light |day,| and the darkness h...&lt;/td&gt;
-      &lt;td&gt;and God calleth to the light 'Day,' and to the...&lt;/td&gt;
-      &lt;td&gt;And God called the light Day, and the darkness...&lt;/td&gt;
-      &lt;td&gt;NaN&lt;/td&gt;
-    &lt;/tr&gt;
-  &lt;/tbody&gt;
-&lt;/table&gt;
-&lt;/div&gt;
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;df&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;describe&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div&gt;
-&lt;style scoped&gt;
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-&lt;/style&gt;
-&lt;table border="1" class="dataframe"&gt;
-  &lt;thead&gt;
-    &lt;tr style="text-align: right;"&gt;
-      &lt;th&gt;&lt;/th&gt;
-      &lt;th&gt;Verse&lt;/th&gt;
-      &lt;th&gt;King James Bible&lt;/th&gt;
-      &lt;th&gt;American Standard Version&lt;/th&gt;
-      &lt;th&gt;Douay-Rheims Bible&lt;/th&gt;
-      &lt;th&gt;Darby Bible Translation&lt;/th&gt;
-      &lt;th&gt;English Revised Version&lt;/th&gt;
-      &lt;th&gt;Webster Bible Translation&lt;/th&gt;
-      &lt;th&gt;World English Bible&lt;/th&gt;
-      &lt;th&gt;Young's Literal Translation&lt;/th&gt;
-      &lt;th&gt;American King James Version&lt;/th&gt;
-      &lt;th&gt;Weymouth New Testament&lt;/th&gt;
-    &lt;/tr&gt;
-  &lt;/thead&gt;
-  &lt;tbody&gt;
-    &lt;tr&gt;
-      &lt;th&gt;count&lt;/th&gt;
-      &lt;td&gt;31102&lt;/td&gt;
-      &lt;td&gt;31102&lt;/td&gt;
-      &lt;td&gt;31100&lt;/td&gt;
-      &lt;td&gt;31092&lt;/td&gt;
-      &lt;td&gt;31099&lt;/td&gt;
-      &lt;td&gt;31086&lt;/td&gt;
-      &lt;td&gt;31102&lt;/td&gt;
-      &lt;td&gt;31098&lt;/td&gt;
-      &lt;td&gt;31102&lt;/td&gt;
-      &lt;td&gt;31102&lt;/td&gt;
-      &lt;td&gt;7924&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;th&gt;unique&lt;/th&gt;
-      &lt;td&gt;31102&lt;/td&gt;
-      &lt;td&gt;30840&lt;/td&gt;
-      &lt;td&gt;30716&lt;/td&gt;
-      &lt;td&gt;30886&lt;/td&gt;
-      &lt;td&gt;30722&lt;/td&gt;
-      &lt;td&gt;30687&lt;/td&gt;
-      &lt;td&gt;30855&lt;/td&gt;
-      &lt;td&gt;30776&lt;/td&gt;
-      &lt;td&gt;30861&lt;/td&gt;
-      &lt;td&gt;30825&lt;/td&gt;
-      &lt;td&gt;7913&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;th&gt;top&lt;/th&gt;
-      &lt;td&gt;Proverbs 26:24&lt;/td&gt;
-      &lt;td&gt;And the LORD spake unto Moses, saying,&lt;/td&gt;
-      &lt;td&gt;And Jehovah spake unto Moses, saying,&lt;/td&gt;
-      &lt;td&gt;And the Lord spoke to Moses, saying:&lt;/td&gt;
-      &lt;td&gt;And Jehovah spoke to Moses, saying,&lt;/td&gt;
-      &lt;td&gt;And the LORD spake unto Moses, saying,&lt;/td&gt;
-      &lt;td&gt;And the LORD spoke to Moses, saying,&lt;/td&gt;
-      &lt;td&gt;Yahweh spoke to Moses, saying,&lt;/td&gt;
-      &lt;td&gt;And Jehovah speaketh unto Moses, saying,&lt;/td&gt;
-      &lt;td&gt;And the LORD spoke to Moses, saying,&lt;/td&gt;
-      &lt;td&gt;May grace and peace be granted to you from God...&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;th&gt;freq&lt;/th&gt;
-      &lt;td&gt;1&lt;/td&gt;
-      &lt;td&gt;72&lt;/td&gt;
-      &lt;td&gt;72&lt;/td&gt;
-      &lt;td&gt;55&lt;/td&gt;
-      &lt;td&gt;72&lt;/td&gt;
-      &lt;td&gt;72&lt;/td&gt;
-      &lt;td&gt;72&lt;/td&gt;
-      &lt;td&gt;71&lt;/td&gt;
-      &lt;td&gt;73&lt;/td&gt;
-      &lt;td&gt;72&lt;/td&gt;
-      &lt;td&gt;5&lt;/td&gt;
-    &lt;/tr&gt;
-  &lt;/tbody&gt;
-&lt;/table&gt;
-&lt;/div&gt;
-
-&lt;p&gt;Bibles!&lt;/p&gt;
-&lt;p&gt;Cool. I think the World English Bible looks good for a modern translation. It does have some annoying "|" we might want to scrub out.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;worldbible&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;df&lt;/span&gt;&lt;span class="p"&gt;[[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Verse&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;World English Bible&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]]&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;worldbible&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;head&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div&gt;
-&lt;style scoped&gt;
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-&lt;/style&gt;
-&lt;table border="1" class="dataframe"&gt;
-  &lt;thead&gt;
-    &lt;tr style="text-align: right;"&gt;
-      &lt;th&gt;&lt;/th&gt;
-      &lt;th&gt;Verse&lt;/th&gt;
-      &lt;th&gt;World English Bible&lt;/th&gt;
-    &lt;/tr&gt;
-  &lt;/thead&gt;
-  &lt;tbody&gt;
-    &lt;tr&gt;
-      &lt;th&gt;0&lt;/th&gt;
-      &lt;td&gt;Genesis 1:1&lt;/td&gt;
-      &lt;td&gt;In the beginning God created the heavens and t...&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;th&gt;1&lt;/th&gt;
-      &lt;td&gt;Genesis 1:2&lt;/td&gt;
-      &lt;td&gt;Now the earth was formless and empty. Darkness...&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;th&gt;2&lt;/th&gt;
-      &lt;td&gt;Genesis 1:3&lt;/td&gt;
-      &lt;td&gt;God said, |Let there be light,| and there was ...&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;th&gt;3&lt;/th&gt;
-      &lt;td&gt;Genesis 1:4&lt;/td&gt;
-      &lt;td&gt;God saw the light, and saw that it was good. G...&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;th&gt;4&lt;/th&gt;
-      &lt;td&gt;Genesis 1:5&lt;/td&gt;
-      &lt;td&gt;God called the light |day,| and the darkness h...&lt;/td&gt;
-    &lt;/tr&gt;
-  &lt;/tbody&gt;
-&lt;/table&gt;
-&lt;/div&gt;
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;D2&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nb"&gt;tuple&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;x&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;x&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;worldbible&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;to_records&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;index&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="bp"&gt;False&lt;/span&gt;&lt;span class="p"&gt;)]&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;D2&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[(&amp;#39;Genesis 1:1&amp;#39;, &amp;#39;In the beginning God created the heavens and the earth.&amp;#39;),
- (&amp;#39;Genesis 1:2&amp;#39;,
-  &amp;quot;Now the earth was formless and empty. Darkness was on the surface of the deep. God&amp;#39;s Spirit was hovering over the surface of the waters.&amp;quot;),
- (&amp;#39;Genesis 1:3&amp;#39;, &amp;#39;God said, |Let there be light,| and there was light.&amp;#39;),
- (&amp;#39;Genesis 1:4&amp;#39;,
-  &amp;#39;God saw the light, and saw that it was good. God divided the light from the darkness.&amp;#39;),
- (&amp;#39;Genesis 1:5&amp;#39;,
-  &amp;#39;God called the light |day,| and the darkness he called |night.| There was evening and there was morning, one day.&amp;#39;)]
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Just get rid of those annoying |&lt;/span&gt;
-&lt;span class="n"&gt;D2&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[(&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;v&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt; &lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;t&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;replace&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;|&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;v&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="n"&gt;t&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;D2&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
-&lt;span class="n"&gt;D2&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[(&amp;#39;Genesis 1:1&amp;#39;, &amp;#39;In the beginning God created the heavens and the earth.&amp;#39;),
- (&amp;#39;Genesis 1:2&amp;#39;,
-  &amp;quot;Now the earth was formless and empty. Darkness was on the surface of the deep. God&amp;#39;s Spirit was hovering over the surface of the waters.&amp;quot;),
- (&amp;#39;Genesis 1:3&amp;#39;, &amp;#39;God said, Let there be light, and there was light.&amp;#39;),
- (&amp;#39;Genesis 1:4&amp;#39;,
-  &amp;#39;God saw the light, and saw that it was good. God divided the light from the darkness.&amp;#39;),
- (&amp;#39;Genesis 1:5&amp;#39;,
-  &amp;#39;God called the light day, and the darkness he called night. There was evening and there was morning, one day.&amp;#39;)]
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;We have {0} Bible passages.&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;D2&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&amp;#39;We have 31102 Bible passages.&amp;#39;
-&lt;/pre&gt;&lt;/div&gt;
-
-
-&lt;p&gt;So now we D1, a set of tweets, and D2, a set of Bible passages. Let's get matching!&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# Let&amp;#39;s save our data so we can easily load it in a future session&lt;/span&gt;
-&lt;span class="n"&gt;save_data&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;D1&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;D2&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;pickle&lt;/span&gt;
-&lt;span class="k"&gt;with&lt;/span&gt; &lt;span class="nb"&gt;open&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;processed_data.pkl&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;wb&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;as&lt;/span&gt; &lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
-    &lt;span class="n"&gt;pickle&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;dump&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;save_data&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;f&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;</content><category term="preparing_data"></category></entry><entry><title>1. Tweet2Bible - Defining the Problem</title><link href="https://benhoyle.github.io/part-1-tweet2bible-defining-the-problem.html" rel="alternate"></link><published>2018-06-21T11:00:42+01:00</published><updated>2018-06-21T11:00:42+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-21:/part-1-tweet2bible-defining-the-problem.html</id><summary type="html">&lt;p&gt;This post looks at how we define the problem of text similarity.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;1. Tweet2Bible - Defining the Problem&lt;/h1&gt;
-&lt;p&gt;This post looks at how we define the problem of matching Bible passages to tweets.&lt;/p&gt;
-&lt;hr&gt;
-&lt;h1&gt;What is the problem?&lt;/h1&gt;
-&lt;h2&gt;Problem Introduction&lt;/h2&gt;
-&lt;p&gt;I need to research text matching algorithms. We start with two corpora of text data. For a portion of text in the first corpus we want to find the "most similar" portion of text from the second corpus.&lt;/p&gt;
-&lt;p&gt;For fun I decided to use two readily available corpora of short text portions: my Tweet archive and the Bible.&lt;/p&gt;
-&lt;p&gt;The devil (might have to be careful with that phrase) is in the detail of course. A key problem is how we define "most similar".&lt;/p&gt;
-&lt;p&gt;The problem can be seen as one of information retrieval.&lt;/p&gt;
-&lt;h2&gt;Formalised&lt;/h2&gt;
-&lt;p&gt;We have two corpora: D1 and D2. Each corpora contains a set of text portions: ti, where i is the ith text portion. For a given text portion in D1, tg, we want to return a ranked list of text portions from D2, r.&lt;/p&gt;
-&lt;p&gt;We can define a similarity measure, s, that is a normalised metric with values from 0 to 1 that represents similarity of two text portions t1 and t2, where 0 means no similarity and 1 means t1=t2. The ranked list r thus can contain tuples (tj, sj) sorted in descending order based on sj.&lt;/p&gt;
-&lt;p&gt;We want to design a similarity function that matches our natural feeling of relevance. This is the hard part. Relevance will need to be scored subjectively, by comparatively rating different functions using human judgement (e.g. through looking at the actual results).&lt;/p&gt;
-&lt;h2&gt;Assumptions&lt;/h2&gt;
-&lt;p&gt;Below are some assumptions that may apply to the problem.&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;We assume that there is some underlying human "relevance", i.e. that a person plucked off the street could say, relatively that one passage is more relevant than another passage.&lt;/li&gt;
-&lt;li&gt;We assume that similarity in some way may be reduced to a single metric between 0 and 1.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;hr&gt;
-&lt;h2&gt;Similar Problems&lt;/h2&gt;
-&lt;h3&gt;Information Retrieval&lt;/h3&gt;
-&lt;p&gt;The current problem is really an &lt;a href="https://en.wikipedia.org/wiki/Information_retrieval"&gt;information retrieval&lt;/a&gt; problem. We have a source document, which is used to query a corpus and to retrieve a set of "relevant" documents. Many information retrieval systems take a set of keywords and then query an indexed database using the keywords. Google uses the PageRank algorithm and other magic to return relevant search results that are ranked based on links in and out of the web-page.&lt;/p&gt;
-&lt;hr&gt;
-&lt;h1&gt;Why does the problem need to be solved?&lt;/h1&gt;
-&lt;p&gt;There are many areas where it would be useful to match text segments. For example, in my patent work it would be good to select relevant passages of patent publications and Wikipedia based on claim or description text.  &lt;/p&gt;
-&lt;h3&gt;My Motivation&lt;/h3&gt;
-&lt;p&gt;By trying out techniques on a toy problem I can perform some high-level evaluation of what works. Plus it seems fun to match Bible passages to tweets.&lt;/p&gt;
-&lt;h3&gt;Solution Benefits&lt;/h3&gt;
-&lt;p&gt;The solution can form the basis for text similarity matching algorithms in other projects I am working on.  &lt;/p&gt;
-&lt;h3&gt;Solution Use&lt;/h3&gt;
-&lt;p&gt;I will write up my results in a blog post report. There will be a separate blog post for each stage in my investigation and a summary page reporting my results.&lt;/p&gt;
-&lt;p&gt;I could also build a small web application that applies the algorithm to live tweets and other sources of scripture. Who wouldn't want to know which passage of the Qu'ran best matches Donald Trump's latest rant?&lt;/p&gt;
-&lt;hr&gt;
-&lt;h1&gt;How Would I Solve the Problem?&lt;/h1&gt;
-&lt;p&gt;It is worth considering how the problem may be solved manually.&lt;/p&gt;
-&lt;p&gt;I would start by reading a tweet. I would then manually skim through passages of the Bible until I located one that seemed to be related. If I had a lot of free time I might even rank each passage based on relative relevance (e.g. if there are 1000 passages, each passage would get a unique score between 1 and 1000 - I would definitely lose track after about 3).&lt;/p&gt;
-&lt;p&gt;Now having to review each passage of the Bible in turn is quite labour intensive. To help I might try to group similar passages together (e.g. these all mention "crows"). I might find that certain portions were more relevant to certain topics (e.g. Genesis to matters of geology and biology).&lt;/p&gt;
-&lt;p&gt;I might try to summarise each tweet with a set of one or two keywords. I could then use those keywords to do a text search.&lt;/p&gt;</content><category term="defining_the_problem"></category></entry><entry><title>3. Title Generation - Initial Model</title><link href="https://benhoyle.github.io/part-3-title-generation-initial-model.html" rel="alternate"></link><published>2018-06-21T10:02:55+01:00</published><updated>2018-06-21T10:02:55+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-21:/part-3-title-generation-initial-model.html</id><summary type="html">&lt;p&gt;This post looks at implementing an initial model.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;3. Title Generation - Initial Model&lt;/h1&gt;
+&lt;/pre&gt;&lt;/div&gt;</content><category term="initial_model"></category></entry><entry><title>3. Title Generation - Initial Model</title><link href="https://benhoyle.github.io/part-3-title-generation-initial-model.html" rel="alternate"></link><published>2018-06-21T10:02:55+01:00</published><updated>2018-06-21T10:02:55+01:00</updated><author><name>Ben Hoyle</name></author><id>tag:benhoyle.github.io,2018-06-21:/part-3-title-generation-initial-model.html</id><summary type="html">&lt;p&gt;This post looks at implementing an initial model.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;3. Title Generation - Initial Model&lt;/h1&gt;
 &lt;p&gt;Given our analysis in the previous post we will now construct our model.&lt;/p&gt;
 &lt;hr&gt;
 &lt;h2&gt;Load and Tokenize Data&lt;/h2&gt;

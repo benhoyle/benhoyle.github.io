@@ -8,34 +8,16 @@
 
   <title>  2. Title Generation - Exploring the Data | Practical Machine Learning Adventures
 </title>
-  <link rel="canonical" href="https://benhoyle.github.io/part-2-title-generation-exploring-the-data.html">
+  <link rel="canonical" href="./part-2-title-generation-exploring-the-data.html">
 
 
-  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/bootstrap.min.css">
+  <link rel="stylesheet" href="./theme/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.9/css/all.css" integrity="sha384-5SOiIsAziJl6AWe0HWRKTXlfcSHKmYV4RBF18PPJ173Kzn7jzMyFuTtk8JA7QQG1" crossorigin="anonymous">
-  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/pygments/default.min.css">
-  <link rel="stylesheet" href="https://benhoyle.github.io/theme/css/theme.css">
+  <link rel="stylesheet" href="./theme/css/pygments/default.min.css">
+  <link rel="stylesheet" href="./theme/css/theme.css">
 
-  <link rel="alternate" type="application/atom+xml" title="Full Atom Feed"
-        href="https://benhoyle.github.io/feeds/all.atom.xml">
-  <link rel="alternate" type="application/atom+xml" title="Categories Atom Feed"
-        href="https://benhoyle.github.io/feeds/title-generation.atom.xml">  
+  
   <meta name="description" content="This post explores the data for our title generation experiments.">
-  <script>
-    (function(i, s, o, g, r, a, m) {
-      i['GoogleAnalyticsObject'] = r;
-      i[r] = i[r] || function() {
-        (i[r].q = i[r].q || []).push(arguments)
-      }, i[r].l = 1 * new Date();
-      a = s.createElement(o);
-      a.async = 1;
-      a.src = g;
-      m = s.getElementsByTagName(o)[0];
-      m.parentNode.insertBefore(a, m)
-    })(window, document, 'script', 'https://www.google-analytics.com/analytics.js', 'ga');
-    ga('create', 'UA-96290248-2', 'auto');
-    ga('send', 'pageview');
-  </script>
 
 
 </head>
@@ -45,7 +27,7 @@
     <div class="container">
 <div class="row">
   <div class="col-sm-12">
-    <h1 class="title"><a href="https://benhoyle.github.io/">Practical Machine Learning Adventures</a></h1>
+    <h1 class="title"><a href="./">Practical Machine Learning Adventures</a></h1>
       <p class="text-muted">A selection of machine learning projects</p>
   </div>
 </div>    </div>
@@ -213,7 +195,7 @@ in response to a failure of the primary SGW, the backup SGW assuming management 
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/TG_2_output_16_1.png"></p>
+<p><img alt="png" src="./images/TG_2_output_16_1.png"></p>
 <p>So even though our maximum claim length is 2310 words, we see this maximum length is a clear outlier. The mass of our claim length distribution resides between 0 and 500 words. Let's zoom in on that.</p>
 <div class="highlight"><pre><span></span><span class="c1"># Let&#39;s zoom in on 0 to 500</span>
 <span class="n">bins</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">500</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
@@ -225,7 +207,7 @@ in response to a failure of the primary SGW, the backup SGW assuming management 
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/TG_2_output_18_0.png"></p>
+<p><img alt="png" src="./images/TG_2_output_18_0.png"></p>
 <p>Interestingly the distribution of claim lengths seems to be log-normal. This matches the distributions described in this <a href="https://jakevdp.github.io/blog/2017/11/09/exploring-line-lengths-in-python-packages/">blogpost on computer program line lengths</a>. Funny how both code and patent claims have a similar distribution for sequence length. </p>
 <p>This is something to remember when thinking about later generative models and regularisation: a "good" generative model should replicate this log-normal distribution.</p>
 <h4>Title Length</h4>
@@ -246,7 +228,7 @@ in response to a failure of the primary SGW, the backup SGW assuming management 
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/TG_2_output_21_1.png"></p>
+<p><img alt="png" src="./images/TG_2_output_21_1.png"></p>
 <p>Again 77 words seems a clear outlier. Let's zoom in on 0 to 30 where most of the distribution lies.</p>
 <div class="highlight"><pre><span></span><span class="n">bins</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">Y_length</span><span class="p">,</span> <span class="n">bins</span><span class="p">)</span>
@@ -257,7 +239,7 @@ in response to a failure of the primary SGW, the backup SGW assuming management 
 </pre></div>
 
 
-<p><img alt="png" src="https://benhoyle.github.io/images/TG_2_output_23_0.png"></p>
+<p><img alt="png" src="./images/TG_2_output_23_0.png"></p>
 <p>Here we could probably limit our output length to 15-20 while still capturing most of the data. The modal length is around 7.</p>
 <p>Again we appear to have a log-normal distribution.</p>
 <h3>Dimensionality Issues</h3>
@@ -355,14 +337,14 @@ With limit 50 there are 29993 samples
         </li>
         <li class="list-inline-item">
           <i class="fa fa-folder-open-o"></i>
-          <a href="https://benhoyle.github.io/category/title-generation.html">Title Generation</a>
+          <a href="./category/title-generation.html">Title Generation</a>
         </li>
           <li class="list-inline-item">
             <i class="fa fa-user-o"></i>
-              <a href="https://benhoyle.github.io/author/ben-hoyle.html">Ben Hoyle</a>          </li>
+              <a href="./author/ben-hoyle.html">Ben Hoyle</a>          </li>
           <li class="list-inline-item">
             <i class="fa fa-files-o"></i>
-              <a href="https://benhoyle.github.io/tag/preparing_data.html">#preparing_data</a>          </li>
+              <a href="./tag/preparing_data.html">#preparing_data</a>          </li>
       </ul>
     </footer>
   </article>
